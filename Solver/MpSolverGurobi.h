@@ -60,6 +60,7 @@ public:
 
     enum OptimaOrientation { Minimize = GRB_MINIMIZE, Maximize = GRB_MAXIMIZE };
 
+    // TODO[szx][0]: separate result state and error state, since there may be feasible solutions even if error occurs.
     // status for the most recent optimization.
     enum ResultStatus {
         Optimal,         // GRB_OPTIMAL
@@ -330,7 +331,15 @@ public:
     void removeConstraint(Constraint constraint) { model.remove(constraint); }
     int getConstraintCount() const { return model.get(GRB_IntAttr_NumConstrs); }
 
-    // objectives.
+    // objectives (do not call single-objective and multi-objective setters on single model).
+    // single-objective setter.
+    void setOptimaOrientation(OptimaOrientation optimaOrientation = DefaultObjectiveOptimaOrientation) {
+        model.set(GRB_IntAttr_ModelSense, optimaOrientation);
+    }
+    void setObjective(const LinearExpr &expr, OptimaOrientation orientation) {
+        model.setObjective(expr, orientation);
+    }
+    // multi-objective setter.
     void addObjective(const LinearExpr &expr, OptimaOrientation orientation, int priority = DefaultObjectivePriority,
         double relTolerance = Configuration::DefaultObjectiveRelativeTolerance, double absTolerance = Configuration::DefaultObjectiveAbsoluteTolerance,
         double timeoutInSecond = Configuration::Forever, OnOptimaFound postprocess = OnOptimaFound(), OnSolveBegin preprocess = OnSolveBegin()) {
@@ -357,6 +366,8 @@ public:
     List<double> getObjectiveValues() const;
 
     int getObjectiveCount() const { return static_cast<int>(objectives.size()); }
+
+    double getBestBound() const { return model.get(GRB_DoubleAttr_ObjBoundC); }
 
     // configurations.
     void setTimeLimit(Millisecond millisecond) { setTimeLimitInSecond(millisecond / MillisecondsPerSecond); }
@@ -415,13 +426,6 @@ protected:
     bool optimizeInPriorityMode(bool useGurobiMultiObjectiveMode = !Configuration::EnableCallbackForEachObj);
     bool optimizeInWeightMode(double radix = Configuration::DefaultObjectiveWeightRadix, int offset = Configuration::DefaultObjectiveWeightOffset);
 
-    void setOptimaOrientation(OptimaOrientation optimaOrientation = DefaultObjectiveOptimaOrientation) {
-        model.set(GRB_IntAttr_ModelSense, optimaOrientation);
-    }
-
-    void setObjective(const LinearExpr &expr, OptimaOrientation orientation) {
-        model.setObjective(expr, orientation);
-    }
     void setSubObjective(const SubObjective subObj) {
         LinearExpr expr;
         int priority = MaxObjectivePriority - subObj.priority;

@@ -42,7 +42,7 @@ void MpSolverGurobi::updateStatus() {
     default:
         status = ResultStatus::Error; break;
     }
-    if (model.get(GRB_IntAttr_SolCount) > 0) { status = ResultStatus::Feasible; }
+    if (getSolutionCount() > 0) { status = ResultStatus::Feasible; }
 }
 
 bool MpSolverGurobi::reportStatus(ResultStatus status) {
