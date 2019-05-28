@@ -20,6 +20,7 @@
 #include "Utility.h"
 #include "LogSwitch.h"
 #include "Problem.h"
+#include "CliqueSolver.h"
 
 
 namespace szx {
@@ -200,6 +201,10 @@ protected:
     bool optimize(Solution &sln, ID workerId = 0); // optimize by a single worker.
 
     void detectClique();
+
+    bool optimizeBoolDecisionModel(Solution &sln);
+    bool optimizeRelaxedBoolDecisionModel(Solution &sln);
+    bool optimizeIntegerDecisionModel(Solution &sln);
     #pragma endregion Method
 
     #pragma region Field
@@ -211,6 +216,7 @@ public:
         Arr<List<ID>> adjList; // adjMat[i][j] is the j_th adjacent node of node i.
 
         tsm::Clique clique;
+        List<ID> fixedColors; // fixedColors[n] is the fixed color for node n if it is a valid color.
     } aux;
 
     Environment env;

@@ -10,7 +10,7 @@
 
 #include <cmath>
 
-#include "CliqueSolver.h"
+#include "MpSolver.h"
 
 
 using namespace std;
@@ -268,18 +268,12 @@ void Solver::init() {
 bool Solver::optimize(Solution &sln, ID workerId) {
     Log(LogSwitch::Szx::Framework) << "worker " << workerId << " starts." << endl;
 
-    ID nodeNum = input.graph().nodenum();
-    ID colorNum = input.colornum();
-
     // reset solution state.
-    bool status = true;
-    auto &nodeColors(*sln.mutable_nodecolors());
-    nodeColors.Resize(nodeNum, Problem::InvalidId);
+    bool status = false;
 
-    // TODO[0]: replace the following random assignment with your own algorithm.
-    for (ID n = 0; !timer.isTimeOut() && (n < nodeNum); ++n) {
-        nodeColors[n] = rand.pick(colorNum);
-    }
+    //status = optimizeBoolDecisionModel(sln);
+    //status = optimizeRelaxedBoolDecisionModel(sln);
+    status = optimizeIntegerDecisionModel(sln);
 
     sln.colorNum = input.colornum(); // record obj.
 
@@ -287,7 +281,175 @@ bool Solver::optimize(Solution &sln, ID workerId) {
     return status;
 }
 
+bool Solver::optimizeBoolDecisionModel(Solution &sln) {
+    ID nodeNum = input.graph().nodenum();
+
+    auto &nodeColors(*sln.mutable_nodecolors());
+    nodeColors.Resize(nodeNum, Problem::InvalidId);
+
+    MpSolver mp;
+
+    // add decision variables.
+    Arr2D<MpSolver::DecisionVar> isColor(nodeNum, input.colornum());
+    for (auto n = 0; n < nodeNum; ++n) {
+        for (int c = 0; c < input.colornum(); ++c) {
+            isColor.at(n, c) = mp.addVar(MpSolver::VariableType::Bool, 0, 1, 0);
+        }
+    }
+
+    // add constraints.
+    // single color.
+    for (ID n = 0; n < nodeNum; ++n) {
+        MpSolver::LinearExpr sum;
+        for (auto c = 0; c < input.colornum(); ++c) {
+            sum += isColor.at(n, c);
+        }
+        //mp.addConstraint(sum >= 1);
+        mp.addConstraint(sum == 1);
+    }
+
+    // conflict avoidance.
+    for (ID n = 0; n < nodeNum; ++n) {
+        for (auto m = aux.adjList[n].begin(); m != aux.adjList[n].end(); ++m) {
+            for (auto c = 0; c < input.colornum(); ++c) {
+                mp.addConstraint(isColor.at(n, c) + isColor.at(*m, c) <= 1);
+            }
+        }
+    }
+
+    // solve model.
+    mp.setOutput(true);
+    //mp.setMaxThread(1);
+    mp.setTimeLimitInSecond(1800);
+    //mp.setMipFocus(MpSolver::MipFocusMode::ImproveFeasibleSolution);
+
+    // record decision.
+    if (mp.optimize()) {
+        for (ID n = 0; n < nodeNum; ++n) {
+            for (ID c = 0; c < input.colornum(); ++c) {
+                if (mp.isTrue(isColor.at(n, c))) { nodeColors[n] = c; break; }
+            }
+        }
+        return true;
+    }
+
+    return false;
+}
+
+bool Solver::optimizeRelaxedBoolDecisionModel(Solution &sln) {
+    ID nodeNum = input.graph().nodenum();
+
+    auto &nodeColors(*sln.mutable_nodecolors());
+    nodeColors.Resize(nodeNum, Problem::InvalidId);
+
+    MpSolver mp;
+
+    // add decision variables.
+    Arr2D<MpSolver::DecisionVar> isColor(nodeNum, input.colornum());
+    for (auto n = 0; n < nodeNum; ++n) {
+        for (int c = 0; c < input.colornum(); ++c) {
+            isColor.at(n, c) = mp.addVar(MpSolver::VariableType::Bool, 0, 1, 0);
+        }
+    }
+    Arr2D<MpSolver::DecisionVar> hasConflict(nodeNum, nodeNum);
+    for (auto n = 0; n < nodeNum; ++n) {
+        for (auto m = aux.adjList[n].begin(); m != aux.adjList[n].end(); ++m) {
+            hasConflict.at(n, *m) = mp.addVar(MpSolver::VariableType::Real, 0, 1, 1);
+        }
+    }
+
+    // add constraints.
+    // single color.
+    for (ID n = 0; n < nodeNum; ++n) {
+        MpSolver::LinearExpr sum;
+        for (auto c = 0; c < input.colornum(); ++c) {
+            sum += isColor.at(n, c);
+        }
+        //mp.addConstraint(sum >= 1);
+        mp.addConstraint(sum == 1);
+    }
+
+    // conflict avoidance.
+    for (ID n = 0; n < nodeNum; ++n) {
+        for (auto m = aux.adjList[n].begin(); m != aux.adjList[n].end(); ++m) {
+            for (auto c = 0; c < input.colornum(); ++c) {
+                mp.addConstraint(isColor.at(n, c) + isColor.at(*m, c) <= 1 + hasConflict.at(n, *m));
+            }
+        }
+    }
+
+    // set objective.
+    mp.setOptimaOrientation(MpSolver::OptimaOrientation::Minimize);
+
+    // solve model.
+    mp.setOutput(true);
+    //mp.setMaxThread(1);
+    mp.setTimeLimitInSecond(1800);
+    //mp.setMipFocus(MpSolver::MipFocusMode::ImproveFeasibleSolution);
+
+    // record decision.
+    if (mp.optimize()) {
+        for (ID n = 0; n < nodeNum; ++n) {
+            for (ID c = 0; c < input.colornum(); ++c) {
+                if (mp.isTrue(isColor.at(n, c))) { nodeColors[n] = c; break; }
+            }
+        }
+        return true;
+    }
+
+    return false;
+}
+
+bool Solver::optimizeIntegerDecisionModel(Solution &sln) {
+    ID nodeNum = input.graph().nodenum();
+
+    auto &nodeColors(*sln.mutable_nodecolors());
+    nodeColors.Resize(nodeNum, Problem::InvalidId);
+
+    MpSolver mp;
+
+    // add decision variables.
+    Arr<MpSolver::DecisionVar> colors(nodeNum);
+    for (auto x = colors.begin(); x != colors.end(); ++x) {
+        *x = mp.addVar(MpSolver::VariableType::Integer, 0, input.colornum() - 1, 0);
+    }
+    Arr2D<MpSolver::DecisionVar> isSmallerColor(nodeNum, nodeNum);
+    for (auto n = 0; n < nodeNum; ++n) {
+        for (auto m = aux.adjList[n].begin(); m != aux.adjList[n].end(); ++m) {
+            isSmallerColor.at(n, *m) = mp.addVar(MpSolver::VariableType::Bool, 0, 1, 0);
+        }
+    }
+
+    // add constraints.
+    // conflict avoidance.
+    for (ID n = 0; n < nodeNum; ++n) {
+        for (auto m = aux.adjList[n].begin(); m != aux.adjList[n].end(); ++m) {
+            MpSolver::LinearExpr diff = colors[n] - colors[*m];
+            mp.addConstraint(1 - input.colornum() * (1 - isSmallerColor.at(n, *m)) <= diff);
+            mp.addConstraint(diff <= input.colornum() * isSmallerColor.at(n, *m) - 1);
+        }
+    }
+
+    // solve model.
+    mp.setOutput(true);
+    //mp.setMaxThread(1);
+    mp.setTimeLimitInSecond(1800);
+    //mp.setMipFocus(MpSolver::MipFocusMode::ImproveFeasibleSolution);
+
+    // record decision.
+    if (mp.optimize()) {
+        for (ID n = 0; n < nodeNum; ++n) {
+            nodeColors[n] = lround(mp.getValue(colors.at(n)));
+        }
+        return true;
+    }
+
+    return false;
+}
+
 void Solver::detectClique() {
+    aux.fixedColors.resize(input.graph().nodenum(), Problem::InvalidId);
+
     auto e = input.graph().edges().begin();
     tsm::solveWeightedMaxClique(aux.clique, [&](ID &src, ID &dst) {
         if (e == input.graph().edges().end()) {
@@ -301,7 +463,9 @@ void Solver::detectClique() {
     }, input.graph().nodenum());
 
     Log(LogSwitch::Szx::Preprocess) << "clique[" << aux.clique.weight << "]=";
+    ID c = 0;
     for (auto n = aux.clique.nodes.begin(); n != aux.clique.nodes.end(); ++n) {
+        aux.fixedColors[*n] = c++;
         Log(LogSwitch::Szx::Preprocess) << " " << *n;
     }
     Log(LogSwitch::Szx::Preprocess) << endl;
