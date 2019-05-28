@@ -28,8 +28,11 @@
     <Filter Include="Solver\Protocol">
       <UniqueIdentifier>{cfb319b9-b506-4146-b7d4-26df65b98a13}</UniqueIdentifier>
     </Filter>
-    <Filter Include="MpSolver">
+    <Filter Include="Solver\MpSolver">
       <UniqueIdentifier>{e7948677-4de6-4266-b71b-40a363f21ca8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Solver\Clique">
+      <UniqueIdentifier>{0cad3212-3d95-49b3-97b2-96ffc6e39242}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -67,13 +70,19 @@
       <Filter>Solver\Protocol</Filter>
     </ClInclude>
     <ClInclude Include="..\Solver\MpSolverBase.h">
-      <Filter>MpSolver</Filter>
+      <Filter>Solver\MpSolver</Filter>
     </ClInclude>
     <ClInclude Include="..\Solver\MpSolverGurobi.h">
-      <Filter>MpSolver</Filter>
+      <Filter>Solver\MpSolver</Filter>
     </ClInclude>
     <ClInclude Include="..\Solver\MpSolver.h">
-      <Filter>MpSolver</Filter>
+      <Filter>Solver\MpSolver</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Solver\CliqueSolver.h">
+      <Filter>Solver\Clique</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Solver\Graph.h">
+      <Filter>Solver\Clique</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -96,7 +105,13 @@
       <Filter>Solver\Protocol</Filter>
     </ClCompile>
     <ClCompile Include="..\Solver\MpSolverGurobi.cpp">
-      <Filter>MpSolver</Filter>
+      <Filter>Solver\MpSolver</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Solver\CliqueTsm.cpp">
+      <Filter>Solver\Clique</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Solver\CliqueSolver.cpp">
+      <Filter>Solver\Clique</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

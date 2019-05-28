@@ -169,9 +169,11 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\Solver\CliqueSolver.h" />
     <ClInclude Include="..\Solver\Common.h" />
     <ClInclude Include="..\Solver\Config.h" />
     <ClInclude Include="..\Solver\CsvReader.h" />
+    <ClInclude Include="..\Solver\Graph.h" />
     <ClInclude Include="..\Solver\GraphColoring.pb.h" />
     <ClInclude Include="..\Solver\LogSwitch.h" />
     <ClInclude Include="..\Solver\MpSolver.h" />
@@ -185,6 +187,8 @@
     <ClInclude Include="ThreadPool.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\Solver\CliqueSolver.cpp" />
+    <ClCompile Include="..\Solver\CliqueTsm.cpp" />
     <ClCompile Include="..\Solver\CsvReader.cpp" />
     <ClCompile Include="..\Solver\GraphColoring.pb.cc" />
     <ClCompile Include="..\Solver\MpSolverGurobi.cpp" />

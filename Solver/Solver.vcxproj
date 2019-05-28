@@ -169,9 +169,11 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="CliqueSolver.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="CsvReader.h" />
+    <ClInclude Include="Graph.h" />
     <ClInclude Include="GraphColoring.pb.h" />
     <ClInclude Include="LogSwitch.h" />
     <ClInclude Include="MpSolver.h" />
@@ -183,6 +185,8 @@
     <ClInclude Include="Utility.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CliqueSolver.cpp" />
+    <ClCompile Include="CliqueTsm.cpp" />
     <ClCompile Include="CsvReader.cpp" />
     <ClCompile Include="GraphColoring.pb.cc" />
     <ClCompile Include="Main.cpp" />

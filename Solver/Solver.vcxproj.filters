@@ -22,6 +22,9 @@
     <Filter Include="MpSolver">
       <UniqueIdentifier>{c6dc9827-4bbd-4f26-8336-0b5b3944a3cc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Clique">
+      <UniqueIdentifier>{82abd3ed-5393-40f5-a186-4a8c1c5cc5c8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Config.h">
@@ -60,6 +63,12 @@
     <ClInclude Include="MpSolver.h">
       <Filter>MpSolver</Filter>
     </ClInclude>
+    <ClInclude Include="CliqueSolver.h">
+      <Filter>Clique</Filter>
+    </ClInclude>
+    <ClInclude Include="Graph.h">
+      <Filter>Clique</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
@@ -79,6 +88,12 @@
     </ClCompile>
     <ClCompile Include="MpSolverGurobi.cpp">
       <Filter>MpSolver</Filter>
+    </ClCompile>
+    <ClCompile Include="CliqueTsm.cpp">
+      <Filter>Clique</Filter>
+    </ClCompile>
+    <ClCompile Include="CliqueSolver.cpp">
+      <Filter>Clique</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
