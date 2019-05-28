@@ -198,6 +198,8 @@ public:
 protected:
     void init();
     bool optimize(Solution &sln, ID workerId = 0); // optimize by a single worker.
+
+    void detectClique();
     #pragma endregion Method
 
     #pragma region Field
@@ -206,7 +208,9 @@ public:
     Problem::Output output;
 
     struct { // auxiliary data for solver.
-        List<List<ID>> adjList; // adjMat[i][j] is the j_th adjacent node of node i.
+        Arr<List<ID>> adjList; // adjMat[i][j] is the j_th adjacent node of node i.
+
+        tsm::Clique clique;
     } aux;
 
     Environment env;

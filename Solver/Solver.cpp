@@ -10,6 +10,8 @@
 
 #include <cmath>
 
+#include "CliqueSolver.h"
+
 
 using namespace std;
 
@@ -255,7 +257,7 @@ bool Solver::check(Length &checkerObj) const {
 void Solver::init() {
     ID nodeNum = input.graph().nodenum();
 
-    aux.adjList.resize(nodeNum);
+    aux.adjList.init(nodeNum);
     for (auto e = input.graph().edges().begin(); e != input.graph().edges().end(); ++e) {
         // assume there is no duplicated edge.
         aux.adjList.at(e->src()).push_back(e->dst());
@@ -283,6 +285,26 @@ bool Solver::optimize(Solution &sln, ID workerId) {
 
     Log(LogSwitch::Szx::Framework) << "worker " << workerId << " ends." << endl;
     return status;
+}
+
+void Solver::detectClique() {
+    auto e = input.graph().edges().begin();
+    tsm::solveWeightedMaxClique(aux.clique, [&](ID &src, ID &dst) {
+        if (e == input.graph().edges().end()) {
+            e = input.graph().edges().begin();
+            return false;
+        }
+        src = e->src();
+        dst = e->dst();
+        ++e;
+        return true;
+    }, input.graph().nodenum());
+
+    Log(LogSwitch::Szx::Preprocess) << "clique[" << aux.clique.weight << "]=";
+    for (auto n = aux.clique.nodes.begin(); n != aux.clique.nodes.end(); ++n) {
+        Log(LogSwitch::Szx::Preprocess) << " " << *n;
+    }
+    Log(LogSwitch::Szx::Preprocess) << endl;
 }
 #pragma endregion Solver
 
