@@ -1,5 +1,5 @@
 <p style="text-align: center; font-size: 32px; font-weight:bold;">
-  Graph Coloring Crossover Model
+  Graph Coloring Models
 </p>
 
 
@@ -16,23 +16,28 @@
 
 | Set | Description                   | Size        | Element         | Remark                                                         |
 | ---- | ---------------------- | ----------- | ------------ | ------------------------------------------------------------ |
-| $N$ | **n**ode set | $[2, 2000]$ | $n, m$ |               |
-| $C$ | **c**olor set | $[2, 200]$ | $n$ |               |
-| $P$ | **p**arent set | $[2, 20]$ | $p$ |               |
+| $N$ | **n**ode set | $[2, 2000]$ | $n, m$ | $I_{n} \subset N$ is the set of independent sets containing node $n$ |
+| $P$ | **p**arent set | $[2, 2000]$ | $p$ | $I_{p} \subset I$ is a set of related independent sets |
+| $I$ | pseudo **i**ndependent sets | $[2, 2000]$ | $i$ | $N_{i} \subset N$ is a set of independent nodes |
+| $C$ | **c**olor set | $[2, 2000]$ | $c$ |               |
 
 ### Constant
 
 | Constant | Description                    | Type | Range       | Remark |
 | -------- | ------------------------------ | ---- | ----------- | ------ |
-| $A_{pnc}$ | node $n$ is **a**ssigned with color $c$ in parent $p$ | bool | $\{0, 1\}$ |  |
+| $S^{-}_{p}$ | min number of independent sets **s**elected from parent $p$ | int | $[0, |I_{p}|]$ |  |
+| $S^{+}_{p}$ | max number of independent sets **s**elected from parent $p$ | int | $[0, |I_{p}|]$ |  |
+| $L_{ni}$ | covering **l**evel of node $n$ by independent set $i$ | real | $[0, 1]$ | $L_{in} < 1$ if adjacent nodes of $n$ in $i$ exists |
 
 
 ## Decision
 
 | Variable     | Description                                                | Type | Domain     | Remark                                                     |
 | -------------- | ------------------------------------------------------------ | ---- | ------------- | ------------------------------------------------------------ |
-| $s_{pc}$ | node set **s**elected | bool | $\{0, 1\}$ |  |
-| $l_{n}$ | covering **l**evel of node $n$ | real | $[0, 1]$ | $l_{n} = 1$ means fully covered |
+| $s_{i}$ | independent node set $i$ is **s**elected | bool | $\{0, 1\}$ |  |
+| $l_{n}$ | covering **l**evel of node $n$ | real | $[0, 1]$ | $l_{n} = 1$ means fully covered without conflict |
+| $y_{ni}$ | covering node $n$ by independent set $i$ | real | $[0, 1]$ | auxiliary variable for linearization |
+| $z_{n}$ | max covering level of node $n$ | real | $[0, 1]$ | auxiliary variable for linearization |
 
 
 ## Objective
@@ -42,7 +47,7 @@
 cover nodes as many as possible.
 
 $$
-\max \sum_{n \in N} ...
+\max \sum_{n \in N} l_{n}
 $$
 
 
@@ -50,9 +55,74 @@ $$
 
 all of the following constraints must be satisfied.
 
-- **HNC (node coverage)** ...
+- **HNC (node coverage)** every node belongs to an independent set which will be assigned with the same color.
+  use this if $\sum_{i} L_{in} < 1$ where $i$ belongs to the independent sets with conflicts on node $n$, otherwise, better use **HCL (coverage level)**.
   $$
-  ...
+  \sum_{i \in I_{n}} L_{ni} \cdot s_{i} \ge l_{n}, \quad \forall n \in N
+  $$
+
+- **HCL (coverage level)** every node belongs to an independent set which will be assigned with the same color.
+  **HNC (node coverage)** is trivial when this constraint is enabled.
+  $$
+  \max_{i \in I_{n}} \{L_{ni} \cdot s_{i}\} \ge l_{n}, \quad \forall n \in N
+  $$
+  which can be linearized as
+  $$
+  z_{n} \ge l_{n}, \quad \forall n \in N
+  $$
+  $$
+  y_{ni} + L_{ni} \cdot s_{i} \ge z_{n}, \quad \forall n \in N, \forall i \in I_{n}
+  $$
+  $$
+  \sum_{i \in I_{n}} y_{ni} \le |I_{n}| - 1, \quad \forall n \in N
+  $$
+
+- **HSN (set number)** given number of independent sets will be selected.
+  the $\ge$ can be replaced with $=$ to tighten the bound, but it may not improve the performance.
+  $$
+  \sum_{i \in I} s_{i} \ge |C|
+  $$
+
+- **HBS (balance selection)** the number of independent sets selected from the same parent is limited.
+  $$
+  S^{-}_{i} \le \sum_{i \in I_{p}} s_{i} \le S^{+}_{i}, \quad \forall p \in P
+  $$
+
+
+
+# Graph Coloring Column Generation
+
+## Known
+
+### Set
+
+| Set | Description                   | Size        | Element         | Remark                                                         |
+| ---- | ---------------------- | ----------- | ------------ | ------------------------------------------------------------ |
+| $N$ | **n**ode set | $[2, 2000]$ | $n, m$ | $I_{n} \subset N$ is the set of independent nodes containing node $n$ |
+| $I$ | **i**ndependent sets | $[2, 2000]$ | $i$ | $N_{i} \subset N$ is a set of independent nodes |
+| $C$ | **c**olor set | $[2, 2000]$ | $c$ |               |
+
+
+## Decision
+
+| Variable     | Description                                                | Type | Domain     | Remark                                                     |
+| -------------- | ------------------------------------------------------------ | ---- | ------------- | ------------------------------------------------------------ |
+| $s_{i}$ | independent node set $i$ is **s**elected | bool | $\{0, 1\}$ |  |
+
+
+## Constraint
+
+all of the following constraints must be satisfied.
+
+- **HNC (node coverage)** every node belongs to an independent set which will be assigned with the same color.
+  $$
+  \sum_{i \in I_{n}} s_{i} \ge 1, \quad \forall n \in N
+  $$
+
+- **HSN (set number)** given number of independent sets will be selected.
+  the $\ge$ can be replaced with $=$ to tighten the bound, but it may not improve the performance.
+  $$
+  \sum_{i \in I} s_{i} \ge |C|
   $$
 
 
@@ -67,7 +137,7 @@ all of the following constraints must be satisfied.
 | ---- | ---------------------- | ----------- | ------------ | ------------------------------------------------------------ |
 | $N$ | **n**ode set | $[2, 2000]$ | $n, m$ |               |
 | $E$ | **e**dge set | $[1, |N|^2]$ | $e, (n, m)$ |               |
-| $C$ | **c**olor set | $[2, 200]$ | $c$ |               |
+| $C$ | **c**olor set | $[2, 2000]$ | $c$ |               |
 
 
 ## Decision
@@ -103,7 +173,7 @@ all of the following constraints must be satisfied.
 | ---- | ---------------------- | ----------- | ------------ | ------------------------------------------------------------ |
 | $N$ | **n**ode set | $[2, 2000]$ | $n, m$ |               |
 | $E$ | **e**dge set | $[1, |N|^2]$ | $e, (n, m)$ |               |
-| $C$ | **c**olor set | $[2, 200]$ | $c$ |               |
+| $C$ | **c**olor set | $[2, 2000]$ | $c$ |               |
 
 
 ## Decision
@@ -151,7 +221,7 @@ all of the following constraints must be satisfied.
 | ---- | ---------------------- | ----------- | ------------ | ------------------------------------------------------------ |
 | $N$ | **n**ode set | $[2, 2000]$ | $n, m$ |               |
 | $E$ | **e**dge set | $[1, |N|^2]$ | $e, (n, m)$ |               |
-| $C$ | **c**olor set | $[2, 200]$ | $c$ |               |
+| $C$ | **c**olor set | $[2, 2000]$ | $c$ |               |
 
 
 ## Decision
