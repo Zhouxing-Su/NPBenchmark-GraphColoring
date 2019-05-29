@@ -162,9 +162,10 @@ static thread_local int * Init_Adj_List;
 static thread_local int BLOCK_COUNT = 0;
 static thread_local int *BLOCK_LIST[100];
 static thread_local double READ_TIME, INIT_TIME, SEARCH_TIME;
+static thread_local std::chrono::steady_clock::time_point AlgStartTime = std::chrono::steady_clock::now();
+static thread_local std::chrono::steady_clock::time_point AlgEndTime;
 static double get_utime() {
-    static thread_local auto start = std::chrono::steady_clock::now();
-	return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count() * 1e-6;
+	return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - AlgStartTime).count() * 1e-6;
 }
 
 //static void check_iset();
@@ -2530,6 +2531,9 @@ static void search_maxclique(int cutoff, int using_init_clique) {
 				cut_ver++;
 			}
 			else {
+                if ((BRANCHING_COUNT % 1000 == 0)
+                    && (std::chrono::steady_clock::now() > AlgEndTime)) { return; }
+
 				BRANCHING_COUNT++;
 				Rollback_Point=ptr(Candidate_Stack);
 
@@ -2990,7 +2994,9 @@ static void saveOutput(Clique &sln) {
     sln.weight = MAX_CLQ_WEIGHT;
 }
 
-bool tsmMain(Clique &sln) {
+bool tsmMain(Clique &sln, int msTimeout) {
+    AlgEndTime = AlgStartTime + std::chrono::milliseconds(msTimeout);
+
     int ret = 0;
     if (INIT_ORDERING == 3) {
         ret = sort_by_weight_degeneracy_and_core_decomposion();
