@@ -37,7 +37,6 @@
 | $s_{i}$ | independent node set $i$ is **s**elected | bool | $\{0, 1\}$ |  |
 | $l_{n}$ | covering **l**evel of node $n$ | real | $[0, 1]$ | $l_{n} = 1$ means fully covered without conflict |
 | $y_{ni}$ | covering node $n$ by independent set $i$ | real | $[0, 1]$ | auxiliary variable for linearization |
-| $z_{n}$ | max covering level of node $n$ | real | $[0, 1]$ | auxiliary variable for linearization |
 
 
 ## Objective
@@ -68,10 +67,7 @@ all of the following constraints must be satisfied.
   $$
   which can be linearized as
   $$
-  z_{n} \ge l_{n}, \quad \forall n \in N
-  $$
-  $$
-  y_{ni} + L_{ni} \cdot s_{i} \ge z_{n}, \quad \forall n \in N, \forall i \in I_{n}
+  y_{ni} + L_{ni} \cdot s_{i} \ge l_{n}, \quad \forall n \in N, \forall i \in I_{n}
   $$
   $$
   \sum_{i \in I_{n}} y_{ni} \le |I_{n}| - 1, \quad \forall n \in N
