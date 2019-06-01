@@ -32,10 +32,10 @@
 // search `static .*[,;]\s*\n` for global or static variables.
 #include <chrono>
 #define MaxSAT
-#define SZX_DEBUG  0
-#if !SZX_DEBUG
+#define SZX_TSM_DEBUG  0
+#if !SZX_TSM_DEBUG
 #define printf
-#endif // SZX_DEBUG
+#endif // SZX_TSM_DEBUG
 
 #define WORD_LENGTH 100
 #define TRUE 1
@@ -2984,11 +2984,11 @@ static void saveOutput(Clique &sln) {
     sln.nodes.resize(MAX_CLQ_SIZE);
     if (INIT_CLQ_WEIGHT < MAX_CLQ_WEIGHT) {
         for (i = 0; i < MAX_CLQ_SIZE; i++) {
-            sln.nodes[i] = Old_Name[MaxCLQ_Stack[i]];
+            sln.nodes[i] = Old_Name[MaxCLQ_Stack[i]] - CliqueIdBase;
         }
     } else {
         for (i = 0; i < MAX_CLQ_SIZE; i++) {
-            sln.nodes[i] = MaxCLQ_Stack[i];
+            sln.nodes[i] = MaxCLQ_Stack[i] - CliqueIdBase;
         }
     }
     sln.weight = MAX_CLQ_WEIGHT;
@@ -3016,9 +3016,9 @@ bool tsmMain(Clique &sln, int msTimeout) {
     }
 
     saveOutput(sln);
-    #if SZX_DEBUG
+    #if SZX_TSM_DEBUG
     check_maxw_clique();
-    #endif // SZX_DEBUG
+    #endif // SZX_TSM_DEBUG
 
     return true;
 }
