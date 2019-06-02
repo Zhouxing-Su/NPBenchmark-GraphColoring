@@ -151,6 +151,8 @@ struct Graph {
 
     template<typename Weight = DefaultWeightType>
     struct Clique {
+        friend bool operator<(const Clique &l, const Clique &r) { return l.weight < r.weight; }
+
         Weight weight;
         List<ID> nodes; // `nodes[i]` is the `i`_th node visited in the tour.
     };

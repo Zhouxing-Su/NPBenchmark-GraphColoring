@@ -237,7 +237,7 @@ public:
         if (treeNode->dataId < 0) {
             treeNode->dataId = static_cast<DataId>(dataPool.size());
             dataPool.push_back(data);
-        } else if (shouldOverwrite(dataPool[treeNode->dataId], data)) {
+        } else if (shouldOverwrite(dataPool[treeNode->dataId], data) && treeNode->children.empty()) {
             dataPool[treeNode->dataId] = data;
         } else {
             return false;
@@ -321,8 +321,8 @@ struct CombinationMap_HashImpl : public CombinationMapBase<Data, Item> {
 
 template<typename Data, typename Item = int>
 //using CombinationMap = CombinationMap_BinTreeImpl<Data, Item>;
-//using CombinationMap = CombinationMap_TrieImpl<Data, Item>;
-using CombinationMap = CombinationMap_HashImpl<Data, Item>;
+using CombinationMap = CombinationMap_TrieImpl<Data, Item>;
+//using CombinationMap = CombinationMap_HashImpl<Data, Item>;
 
 }
 
