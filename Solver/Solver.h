@@ -21,6 +21,7 @@
 #include "LogSwitch.h"
 #include "Problem.h"
 #include "CliqueSolver.h"
+#include "CombinationMap.h"
 
 
 namespace szx {
@@ -106,6 +107,8 @@ public:
 
         Algorithm alg = Configuration::Algorithm::Greedy; // OPTIMIZE[szx][3]: make it a list to specify a series of algorithms to be used by each threads in sequence.
         int threadNumPerWorker = (std::min)(1, static_cast<int>(std::thread::hardware_concurrency()));
+
+        int msCliqueDetectionTimeout = 5000;
     };
 
     // describe the requirements to the input and output data interface.
@@ -172,6 +175,15 @@ public:
         String localTime;
     };
 
+    struct Subgraph {
+        void mapBack(List<ID> &ids) const {
+            for (auto i = ids.begin(); i != ids.end(); ++i) { *i = idMap[*i]; }
+        }
+
+        tsm::AdjMat adjMat;
+        List<ID> idMap;
+    };
+
     struct Solution : public Problem::Output { // cutting patterns.
         Solution(Solver *pSolver = nullptr) : solver(pSolver) {}
 
@@ -201,10 +213,14 @@ protected:
     bool optimize(Solution &sln, ID workerId = 0); // optimize by a single worker.
 
     void detectClique();
+    void detectIndependentSet();
 
     bool optimizeBoolDecisionModel(Solution &sln);
     bool optimizeRelaxedBoolDecisionModel(Solution &sln);
     bool optimizeIntegerDecisionModel(Solution &sln);
+
+    bool optimizeCoveringRelaxedBoolDecisionModel(Solution &sln);
+    bool optimizeCoveringRelaxedBoolDecisionModel(Solution &sln, Arr<double> &coverWeights, Arr<tsm::Weight> &iSetWeights);
     #pragma endregion Method
 
     #pragma region Field
@@ -213,10 +229,14 @@ public:
     Problem::Output output;
 
     struct { // auxiliary data for solver.
-        Arr<List<ID>> adjList; // adjMat[i][j] is the j_th adjacent node of node i.
+        Arr<List<ID>> adjList; // adjList[i][j] is the j_th adjacent node of node i.
+        Arr2D<bool> adjMat; // adjMat[i][j] is true if node i is adjacent to node j.
 
         tsm::Clique clique;
         List<ID> fixedColors; // fixedColors[n] is the fixed color for node n if it is a valid color.
+
+        List<Subgraph> subgraphs;
+        CombinationMap<tsm::Clique> independentSets;
     } aux;
 
     Environment env;

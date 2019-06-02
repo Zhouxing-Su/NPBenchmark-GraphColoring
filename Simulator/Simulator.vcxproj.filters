@@ -84,6 +84,9 @@
     <ClInclude Include="..\Solver\Graph.h">
       <Filter>Solver\Clique</Filter>
     </ClInclude>
+    <ClInclude Include="..\Solver\CombinationMap.h">
+      <Filter>Solver\Utility</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
@@ -113,5 +116,8 @@
     <ClCompile Include="..\Solver\CliqueSolver.cpp">
       <Filter>Solver\Clique</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\arr.natvis" />
   </ItemGroup>
 </Project>

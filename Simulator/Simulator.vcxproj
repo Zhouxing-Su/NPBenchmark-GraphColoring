@@ -170,6 +170,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\Solver\CliqueSolver.h" />
+    <ClInclude Include="..\Solver\CombinationMap.h" />
     <ClInclude Include="..\Solver\Common.h" />
     <ClInclude Include="..\Solver\Config.h" />
     <ClInclude Include="..\Solver\CsvReader.h" />
@@ -196,6 +197,9 @@
     <ClCompile Include="..\Solver\Utility.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Simulator.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\arr.natvis" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

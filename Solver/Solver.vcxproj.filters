@@ -69,6 +69,9 @@
     <ClInclude Include="Graph.h">
       <Filter>Clique</Filter>
     </ClInclude>
+    <ClInclude Include="CombinationMap.h">
+      <Filter>Utility</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
