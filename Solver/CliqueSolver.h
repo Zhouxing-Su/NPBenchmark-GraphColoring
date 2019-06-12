@@ -18,7 +18,7 @@ namespace szx {
 namespace tsm {
 
 using ID = Graph::ID; // node ID counts from 0 in the interface, but counts from 1 inside the LKH.
-using Weight = int;
+using Weight = long long;
 using Millisecond = int;
 
 using AdjNode = Graph::AdjNode;

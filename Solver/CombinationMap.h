@@ -233,11 +233,13 @@ public:
         TreeNode *treeNode = &root;
         for (auto i = orderedItems.begin(); i != orderedItems.end(); ++i) {
             treeNode = &(treeNode->children[*i]);
+            // OPTIMIZE[szx][5]: remove data dominated by this one.
+            // OPTIMIZE[szx][5]: handle { 2, 3 } \in { 1, 2, 3, 4 }.
         }
-        if (treeNode->dataId < 0) {
+        if (treeNode->dataId < 0 && treeNode->children.empty()) { // make sure not dominated by others.
             treeNode->dataId = static_cast<DataId>(dataPool.size());
             dataPool.push_back(data);
-        } else if (shouldOverwrite(dataPool[treeNode->dataId], data) && treeNode->children.empty()) {
+        } else if (shouldOverwrite(dataPool[treeNode->dataId], data)) {
             dataPool[treeNode->dataId] = data;
         } else {
             return false;

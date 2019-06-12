@@ -50,7 +50,7 @@
 #define NULL_REASON -1
 #define NO_REASON -3
 #define CONFLICT -1978
-#define MAX_NODE 100000
+#define MAX_NODE 2000
 #define max_expand_depth 100000
 #define STACK_LENGTH (MAX_NODE*2)
 #define pop(stack) stack[--stack ## _fill_pointer]
