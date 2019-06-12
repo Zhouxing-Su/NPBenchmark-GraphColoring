@@ -89,6 +89,8 @@ public:
     struct Configuration {
         enum Algorithm { Greedy, TreeSearch, DynamicProgramming, LocalSearch, Genetic, MathematicallProgramming };
 
+        static constexpr tsm::Weight TsmPrecision = 1000000;
+
 
         Configuration() {}
 
@@ -219,6 +221,9 @@ protected:
     bool optimizeRelaxedBoolDecisionModel(Solution &sln);
     bool optimizeIntegerDecisionModel(Solution &sln);
 
+    bool optimizeCoveringBoolDecisionModel(Solution &sln);
+    bool optimizeCoveringBoolDecisionModel(Solution &sln, Arr<double> &coverWeights, Arr<tsm::Weight> &iSetWeights, bool linearRelax = false);
+
     bool optimizeCoveringRelaxedBoolDecisionModel(Solution &sln);
     bool optimizeCoveringRelaxedBoolDecisionModel(Solution &sln, Arr<double> &coverWeights, Arr<tsm::Weight> &iSetWeights);
     #pragma endregion Method
@@ -235,7 +240,8 @@ public:
         tsm::Clique clique;
         List<ID> fixedColors; // fixedColors[n] is the fixed color for node n if it is a valid color.
 
-        List<Subgraph> subgraphs;
+        Arr2D<bool> notAdjMat; // notAdjMat[i][j] is true if node i is not adjacent to node j.
+        List<Subgraph> subgraphs; // subgraphs[n] is the sub-graph containing node n in the complement graph.
         CombinationMap<tsm::Clique> independentSets;
     } aux;
 

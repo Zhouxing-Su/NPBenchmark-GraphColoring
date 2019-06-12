@@ -269,7 +269,6 @@ void Solver::init() {
     }
 
     detectClique();
-    detectIndependentSet();
 }
 
 bool Solver::optimize(Solution &sln, ID workerId) {
@@ -281,7 +280,8 @@ bool Solver::optimize(Solution &sln, ID workerId) {
     //status = optimizeBoolDecisionModel(sln);
     //status = optimizeRelaxedBoolDecisionModel(sln);
     //status = optimizeIntegerDecisionModel(sln);
-    status = optimizeCoveringRelaxedBoolDecisionModel(sln);
+    //status = optimizeCoveringRelaxedBoolDecisionModel(sln);
+    status = optimizeCoveringBoolDecisionModel(sln);
 
     sln.colorNum = input.colornum(); // record obj.
 
@@ -458,7 +458,147 @@ bool Solver::optimizeIntegerDecisionModel(Solution &sln) {
     return false;
 }
 
+bool Solver::optimizeCoveringBoolDecisionModel(Solution &sln) {
+    detectIndependentSet();
+
+    ID nodeNum = input.graph().nodenum();
+
+    Arr<double> coverWeights(nodeNum, 1); // for node coverage.
+    Arr<tsm::Weight> iSetWeights(nodeNum, 1); // for independent set computing.
+
+    while (!optimizeCoveringBoolDecisionModel(sln, coverWeights, iSetWeights, true)) {
+        //for (ID n = 0; n < nodeNum; ++n) { // increase weights for uncovered nodes.
+        //    //if (sln.nodecolors(n) >= 0) { continue; }
+        //    //iSetWeights[n] *= 8;
+        //    //coverWeights[n] += 0.125;
+        //    if (sln.nodecolors(n) < 0) {
+        //        iSetWeights[n] = 16;
+        //        coverWeights[n] = 1.0625;
+        //        Log(LogSwitch::Szx::Model) << " " << n;
+        //    } else {
+        //        iSetWeights[n] = 1;
+        //        coverWeights[n] = 1;
+        //    }
+        //}
+        //Log(LogSwitch::Szx::Model) << endl;
+
+        tsm::Clique iSet;
+        tsm::solveWeightedMaxClique(iSet, aux.notAdjMat, iSetWeights, cfg.msCliqueDetectionTimeout);
+
+        tsm::Weight error = static_cast<tsm::Weight>(iSet.nodes.size());
+        tsm::Weight reducedCost = iSet.weight - error;
+        Log(LogSwitch::Szx::Model) << "ReducedCost=" << reducedCost << endl;
+
+        sort(iSet.nodes.begin(), iSet.nodes.end());
+        if (aux.independentSets.set(iSet.nodes, iSet)) {
+            Log(LogSwitch::Szx::Model) << "IndependentSet[" << iSet.nodes.size() << "]=";
+            for (auto m = iSet.nodes.begin(); m != iSet.nodes.end(); ++m) {
+                Log(LogSwitch::Szx::Model) << " " << *m;
+            }
+            Log(LogSwitch::Szx::Model) << endl;
+        } else if (reducedCost <= Configuration::TsmPrecision + (error / 2)) {
+            break;
+        }
+    }
+
+    optimizeCoveringRelaxedBoolDecisionModel(sln, coverWeights, iSetWeights);
+
+    return true;
+}
+
+bool Solver::optimizeCoveringBoolDecisionModel(Solution &sln, Arr<double> &coverWeights, Arr<tsm::Weight> &iSetWeights, bool linearRelax) {
+    detectIndependentSet();
+
+    ID nodeNum = input.graph().nodenum();
+
+    auto &nodeColors(*sln.mutable_nodecolors());
+    nodeColors.Clear();
+    nodeColors.Resize(nodeNum, Problem::InvalidId);
+
+    Arr<List<ID>> nodeInSets(nodeNum); // nodeInSets[n] is a list of independent sets containing node n.
+    ID iSetId = 0;
+    aux.independentSets.forEach([&](const tsm::Clique &iSet) {
+        for (auto n = iSet.nodes.begin(); n != iSet.nodes.end(); ++n) {
+            nodeInSets[*n].push_back(iSetId);
+        }
+        ++iSetId;
+        return false;
+    });
+
+    MpSolver mp;
+
+    // add decision variables.
+    MpSolver::VariableType varType = linearRelax ? MpSolver::VariableType::Real : MpSolver::VariableType::Bool;
+    Arr<MpSolver::DecisionVar> isPicked(aux.independentSets.dataNum());
+    for (ID s = 0; s < aux.independentSets.dataNum(); ++s) {
+        isPicked[s] = mp.addVar(varType, 0, 1, 1);
+    }
+
+    // add constraints.
+    Arr<MpSolver::Constraint> coverages(nodeNum);
+    MpSolver::Constraint setNum;
+
+    // node coverage.
+    for (ID n = 0; n < nodeNum; ++n) {
+        MpSolver::LinearExpr coveringSetNum;
+        for (auto s = nodeInSets[n].begin(); s != nodeInSets[n].end(); ++s) {
+            coveringSetNum += isPicked[*s];
+        }
+        coverages[n] = mp.addConstraint(coveringSetNum >= 1);
+    }
+
+    //// set number.
+    //MpSolver::LinearExpr pickedSetNum;
+    //for (ID s = 0; s < aux.independentSets.dataNum(); ++s) {
+    //    pickedSetNum += isPicked[s];
+    //}
+    ////mp.addConstraint(pickedSetNum == input.colornum());
+    //setNum = mp.addConstraint(pickedSetNum <= input.colornum());
+
+    // set objective.
+    mp.setOptimaOrientation(MpSolver::OptimaOrientation::Minimize);
+
+    // solve model.
+    mp.setOutput(true);
+    //mp.setMaxThread(1);
+    mp.setTimeLimitInSecond(1800);
+    //mp.setMipFocus(MpSolver::MipFocusMode::ImproveFeasibleSolution);
+
+    // record decision.
+    if (mp.optimize()) {
+        if (linearRelax) { // record shadow price.
+            for (ID n = 0; n < nodeNum; ++n) {
+                iSetWeights[n] = lround(Configuration::TsmPrecision * mp.getDualValue(coverages[n])) + 1;
+            }
+        } else { // collect integer solution.
+            ID coloredNodeNum = 0;
+            ID color = 0;
+            ID s = 0;
+            aux.independentSets.forEach([&](const tsm::Clique &iSet) {
+                if (!mp.isTrue(isPicked[s++])) { return false; }
+                for (auto n = iSet.nodes.begin(); n != iSet.nodes.end(); ++n) {
+                    if (nodeColors[*n] >= 0) { continue; }
+                    nodeColors[*n] = color;
+                    ++coloredNodeNum;
+                }
+                return (++color >= input.colornum()); // stop assigning colors if the colors are used up.
+            });
+            if (coloredNodeNum >= nodeNum) { return true; }
+            Log(LogSwitch::Szx::Model) << "Uncovered[" << (nodeNum - coloredNodeNum) << "]=";
+            for (ID n = 0; n < nodeNum; ++n) {
+                if (sln.nodecolors(n) < 0) { Log(LogSwitch::Szx::Model) << " " << n; }
+            }
+            Log(LogSwitch::Szx::Model) << endl;
+        }
+
+    }
+
+    return false;
+}
+
 bool Solver::optimizeCoveringRelaxedBoolDecisionModel(Solution &sln) {
+    detectIndependentSet();
+
     ID nodeNum = input.graph().nodenum();
 
     Arr<double> coverWeights(nodeNum, 1); // for node coverage.
@@ -466,37 +606,67 @@ bool Solver::optimizeCoveringRelaxedBoolDecisionModel(Solution &sln) {
 
     while (!optimizeCoveringRelaxedBoolDecisionModel(sln, coverWeights, iSetWeights)) {
         for (ID n = 0; n < nodeNum; ++n) { // increase weights for uncovered nodes.
-            if (sln.nodecolors(n) >= 0) { continue; }
-            iSetWeights[n] *= 8;
-            coverWeights[n] += 0.125;
-            Log(LogSwitch::Szx::Model) << " " << n;
+            //iSetWeights[n] *= 8;
+            //coverWeights[n] += 0.125;
+            if (sln.nodecolors(n) < 0) {
+                iSetWeights[n] = 16;
+                coverWeights[n] = 1.0625;
+                Log(LogSwitch::Szx::Model) << " " << n;
+            } else {
+                iSetWeights[n] = 1;
+                coverWeights[n] = 1;
+            }
         }
         Log(LogSwitch::Szx::Model) << endl;
 
         tsm::Clique iSet;
-        for (ID n = 0; n < nodeNum; ++n) {
-            Subgraph &subgraph(aux.subgraphs[n]);
-            Arr<tsm::Weight> weights(static_cast<ID>(subgraph.idMap.size()));
-            for (ID i = 0; i < weights.size(); ++i) { weights[i] = iSetWeights[subgraph.idMap[i]]; }
+        tsm::solveWeightedMaxClique(iSet, aux.notAdjMat, iSetWeights, cfg.msCliqueDetectionTimeout);
 
-            tsm::solveWeightedMaxClique(iSet, subgraph.adjMat, weights, cfg.msCliqueDetectionTimeout);
-
-            subgraph.mapBack(iSet.nodes);
-            sort(iSet.nodes.begin(), iSet.nodes.end());
-            if (aux.independentSets.set(iSet.nodes, iSet)) {
-                Log(LogSwitch::Szx::Model) << n << ".IndependentSet[" << iSet.nodes.size() << "]=";
-                for (auto m = iSet.nodes.begin(); m != iSet.nodes.end(); ++m) {
-                    Log(LogSwitch::Szx::Model) << " " << *m;
-                }
-                Log(LogSwitch::Szx::Model) << endl;
+        sort(iSet.nodes.begin(), iSet.nodes.end());
+        if (aux.independentSets.set(iSet.nodes, iSet)) {
+            Log(LogSwitch::Szx::Model) << "IndependentSet[" << iSet.nodes.size() << "]=";
+            for (auto m = iSet.nodes.begin(); m != iSet.nodes.end(); ++m) {
+                Log(LogSwitch::Szx::Model) << " " << *m;
             }
+            Log(LogSwitch::Szx::Model) << endl;
         }
     }
 
-    return false;
+    //while (!optimizeCoveringRelaxedBoolDecisionModel(sln, coverWeights, iSetWeights)) {
+    //    for (ID n = 0; n < nodeNum; ++n) { // increase weights for uncovered nodes.
+    //        if (sln.nodecolors(n) >= 0) { continue; }
+    //        iSetWeights[n] *= 8;
+    //        coverWeights[n] += 0.125;
+    //        Log(LogSwitch::Szx::Model) << " " << n;
+    //    }
+    //    Log(LogSwitch::Szx::Model) << endl;
+
+    //    tsm::Clique iSet;
+    //    for (ID n = 0; n < nodeNum; ++n) {
+    //        Subgraph &subgraph(aux.subgraphs[n]);
+    //        Arr<tsm::Weight> weights(static_cast<ID>(subgraph.idMap.size()));
+    //        for (ID i = 0; i < weights.size(); ++i) { weights[i] = iSetWeights[subgraph.idMap[i]]; }
+
+    //        tsm::solveWeightedMaxClique(iSet, subgraph.adjMat, weights, cfg.msCliqueDetectionTimeout);
+
+    //        subgraph.mapBack(iSet.nodes);
+    //        sort(iSet.nodes.begin(), iSet.nodes.end());
+    //        if (aux.independentSets.set(iSet.nodes, iSet)) {
+    //            Log(LogSwitch::Szx::Model) << n << ".IndependentSet[" << iSet.nodes.size() << "]=";
+    //            for (auto m = iSet.nodes.begin(); m != iSet.nodes.end(); ++m) {
+    //                Log(LogSwitch::Szx::Model) << " " << *m;
+    //            }
+    //            Log(LogSwitch::Szx::Model) << endl;
+    //        }
+    //    }
+    //}
+
+    return true;
 }
 
 bool Solver::optimizeCoveringRelaxedBoolDecisionModel(Solution &sln, Arr<double> &coverWeights, Arr<tsm::Weight> &iSetWeights) {
+    detectIndependentSet();
+
     ID nodeNum = input.graph().nodenum();
 
     auto &nodeColors(*sln.mutable_nodecolors());
@@ -564,8 +734,7 @@ bool Solver::optimizeCoveringRelaxedBoolDecisionModel(Solution &sln, Arr<double>
                 nodeColors[*n] = color;
                 ++coloredNodeNum;
             }
-            ++color;
-            return false;
+            return (++color >= input.colornum()); // stop assigning colors if the colors are used up.
         });
         if (coloredNodeNum >= nodeNum) { return true; }
         Log(LogSwitch::Szx::Model) << "Uncovered[" << (nodeNum - coloredNodeNum) << "]=";
@@ -575,7 +744,15 @@ bool Solver::optimizeCoveringRelaxedBoolDecisionModel(Solution &sln, Arr<double>
 }
 
 void Solver::detectClique() {
+    if (!aux.fixedColors.empty()) { return; } // already initialized.
+
     aux.fixedColors.resize(input.graph().nodenum(), Problem::InvalidId);
+
+    // OPTIMIZE[szx][5]: the tsm seems to find the max clique with max degree automatically?
+    Arr<tsm::Weight> weights(input.graph().nodenum()); // a node with greater degree is more important.
+    for (ID n = 0; n < input.graph().nodenum(); ++n) {
+        weights[n] = Configuration::TsmPrecision + static_cast<tsm::Weight>(aux.adjList[n].size());
+    }
 
     auto e = input.graph().edges().begin();
     tsm::solveWeightedMaxClique(aux.clique, [&](ID &src, ID &dst) {
@@ -587,7 +764,7 @@ void Solver::detectClique() {
         dst = e->dst();
         ++e;
         return true;
-    }, input.graph().nodenum(), cfg.msCliqueDetectionTimeout);
+    }, weights, cfg.msCliqueDetectionTimeout);
 
     Log(LogSwitch::Szx::Preprocess) << "Clique[" << aux.clique.weight << "]=";
     ID c = 0;
@@ -599,18 +776,20 @@ void Solver::detectClique() {
 }
 
 void Solver::detectIndependentSet() {
+    if (!aux.subgraphs.empty()) { return; } // already initialized.
+
     ID nodeNum = input.graph().nodenum();
 
     aux.subgraphs.resize(nodeNum);
     aux.independentSets = CombinationMap<tsm::Clique>(nodeNum);
 
-    tsm::AdjMat complementGraph(nodeNum, nodeNum);
+    aux.notAdjMat.init(nodeNum, nodeNum);
     for (ID i = 0; i < aux.adjMat.size(); ++i) {
-        complementGraph.at(i) = !aux.adjMat.at(i);
+        aux.notAdjMat.at(i) = !aux.adjMat.at(i);
     }
 
     tsm::Clique iSet;
-    tsm::solveWeightedMaxClique(iSet, complementGraph, cfg.msCliqueDetectionTimeout);
+    tsm::solveWeightedMaxClique(iSet, aux.notAdjMat, cfg.msCliqueDetectionTimeout);
     sort(iSet.nodes.begin(), iSet.nodes.end());
     aux.independentSets.set(iSet.nodes, iSet);
     Log(LogSwitch::Szx::Preprocess) << "IndependentSet[" << iSet.weight << "]=";
@@ -622,7 +801,7 @@ void Solver::detectIndependentSet() {
     for (ID n = 0; n < nodeNum; ++n) {
         Subgraph &subgraph(aux.subgraphs[n]);
         for (ID m = 0; m < nodeNum; ++m) {
-            if (!complementGraph.at(n, m)) { continue; }
+            if (!aux.notAdjMat.at(n, m)) { continue; }
             subgraph.idMap.push_back(m);
         }
         ID subGraphNodeNum = static_cast<ID>(subgraph.idMap.size());
@@ -631,7 +810,7 @@ void Solver::detectIndependentSet() {
         for (ID i = 0; i < subGraphNodeNum; ++i) {
             for (ID j = 0; j < subGraphNodeNum; ++j) {
                 if (i == j) { continue; } // the tsm will ignore edge to itself.
-                subgraph.adjMat.at(i, j) = complementGraph.at(subgraph.idMap[i], subgraph.idMap[j]);
+                subgraph.adjMat.at(i, j) = aux.notAdjMat.at(subgraph.idMap[i], subgraph.idMap[j]);
             }
         }
         // OPTIMIZE[szx][5]: shrink the matrix to reduce memory allocation in TSM algorithm.

@@ -27,8 +27,8 @@ static const vector<String> instList({
     "dsjc.n250e15668c28",
     "dsjc.n250e27897c72",
     "dsjc.n500e12458c12",
-    "dsjc.n500e62624c49",
-    "dsjc.n500e62624c48",
+    //"dsjc.n500e62624c49",
+    //"dsjc.n500e62624c48",
     "dsjc.n500e62624c47",
     "dsjc.n500e112437c126",
     "dsjc.n1000e49629c20",
@@ -117,7 +117,7 @@ void Simulator::run(const String &envPath) {
 void Simulator::debug() {
     Task task;
     task.instSet = "";
-    task.instId = "pmed1.n100e198p5";
+    task.instId = "dsjc.n500e62624c47";
     task.randSeed = "1500972793";
     //task.randSeed = to_string(RandSeed::generate());
     task.timeout = "180";
