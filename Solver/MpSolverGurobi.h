@@ -111,6 +111,13 @@ public:
         DefaultIisMethod = -1
     };
 
+    // objective of constraint violation minimization.
+    enum RelaxObjType {
+        Linear = GRB_FEASRELAX_LINEAR,          // minimize the sum of the weighted magnitudes of the bound and constraint violations.
+        Quadratic = GRB_FEASRELAX_QUADRATIC,    // minimize the weighted sum of the squares of the bound and constraint violations.
+        Cardinality = GRB_FEASRELAX_CARDINALITY // minimize the weighted count of bound and constraint violations.
+    };
+
     static constexpr int MaxInt = GRB_MAXINT;
     static constexpr double MaxReal = GRB_INFINITY;
     static constexpr double Infinity = GRB_INFINITY;
@@ -288,6 +295,36 @@ public:
         }
     }
 
+    // if (optimizeOriginalObj == false), gives a solution that minimizes the cost of the violation.
+    // otherwise, finds a solution that minimizes the original objective only among those that minimize the violation.
+    // return 0 if (optimizeOriginalObj == false). otherwise, the return value is the objective value for the relaxation performed.
+    // return a value less than 0, if the method failed to create the feasibility relaxation.
+    double relax(bool relaxVarBound = false, bool relaxConstraint = true,
+        bool optimizeOriginalObj = false, RelaxObjType relaxobjtype = RelaxObjType::Linear) {
+        updateModel();
+        return model.feasRelax(relaxobjtype, optimizeOriginalObj, relaxVarBound, relaxConstraint);
+    }
+    double relax(const List<Constraint> &constr, const List<double> &rhspen,
+        const List<DecisionVar> &vars, const List<double> &lbpen, const List<double> &ubpen,
+        bool optimizeOriginalObj = false, RelaxObjType relaxobjtype = RelaxObjType::Linear) {
+        updateModel();
+        return model.feasRelax(relaxobjtype, optimizeOriginalObj,
+            static_cast<int>(vars.size()), vars.data(), lbpen.data(), ubpen.data(),
+            static_cast<int>(constr.size()), constr.data(), rhspen.data());
+    }
+    double relax(const List<Constraint> &constr, const List<double> &rhspen,
+        bool optimizeOriginalObj = false, RelaxObjType relaxobjtype = RelaxObjType::Linear) {
+        updateModel();
+        return model.feasRelax(relaxobjtype, optimizeOriginalObj, 0, nullptr, nullptr, nullptr,
+            static_cast<int>(constr.size()), constr.data(), rhspen.data());
+    }
+    double relax(const List<DecisionVar> &vars, const List<double> &lbpen, const List<double> &ubpen,
+        bool optimizeOriginalObj = false, RelaxObjType relaxobjtype = RelaxObjType::Linear) {
+        updateModel();
+        return model.feasRelax(relaxobjtype, optimizeOriginalObj,
+            static_cast<int>(vars.size()), vars.data(), lbpen.data(), ubpen.data(), 0, nullptr, nullptr);
+    }
+
     // status.
     static bool reportStatus(ResultStatus status);
     Millisecond getDuration() const { return static_cast<Millisecond>(timer.elapsedSeconds() * MillisecondsPerSecond); }
@@ -330,6 +367,8 @@ public:
     Constraint addConstraint(const LinearRange &r, const String &name = "") { return model.addConstr(r, name); }
     void removeConstraint(Constraint constraint) { model.remove(constraint); }
     int getConstraintCount() const { return model.get(GRB_IntAttr_NumConstrs); }
+
+    double getDualValue(const Constraint &constraint) const { return constraint.get(GRB_DoubleAttr_Pi); }
 
     // objectives (do not call single-objective and multi-objective setters on single model).
     // single-objective setter.
@@ -451,6 +490,8 @@ protected:
             } else {
                 status = ResultStatus::Error;
             }
+        } catch (...) {
+            status = ResultStatus::Error;
         }
         return status;
     }
