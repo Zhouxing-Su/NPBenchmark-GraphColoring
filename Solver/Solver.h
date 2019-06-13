@@ -91,6 +91,12 @@ public:
 
         static constexpr tsm::Weight TsmPrecision = 1000000;
 
+        static constexpr ID ConflictWeightBase = 100;
+        static constexpr double MaxStagnationCoefOnNodeNum = 1;
+        static constexpr double MaxPerterbationCoefOnNodeNum = 0.125;
+        static constexpr double PerturbedNodeRatio = 0.0625;
+        static constexpr double PerturbedConflictNodeRatio = 0.75;
+
 
         Configuration() {}
 
@@ -226,6 +232,10 @@ protected:
 
     bool optimizeCoveringRelaxedBoolDecisionModel(Solution &sln);
     bool optimizeCoveringRelaxedBoolDecisionModel(Solution &sln, Arr<double> &coverWeights, Arr<tsm::Weight> &iSetWeights);
+
+    bool optimizeLocalSearch(Solution &sln);
+    bool optimizeTabuSearch(Solution &sln);
+    bool optimizeAuctionSearch(Solution &sln);
     #pragma endregion Method
 
     #pragma region Field

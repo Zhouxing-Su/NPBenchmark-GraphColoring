@@ -806,4 +806,91 @@ private:
 }
 
 
+template<typename T, typename Priority = int>
+class PriorityQueue { // smaller key means higher priority.
+public:
+    static constexpr Priority InvalidIndex = (std::numeric_limits<Priority>::max)() / 2;
+
+
+    PriorityQueue(Priority maxBucketNum, Priority priorityOffset = 0) : firstNonEmptyIndex(InvalidIndex),
+        lastNonEmptyIndex(0), container(maxBucketNum), offset(priorityOffset) {
+    }
+
+
+    // TODO[szx][2]: what if the priority is negative?
+    //               pass an offset in constructor and add it to the priority in each push?
+    // put item into the queue.
+    void push(const T &e, Priority priority) {
+        container[priority += offset].push_back(e);
+        if (priority < firstNonEmptyIndex) { firstNonEmptyIndex = priority; }
+        if (priority > lastNonEmptyIndex) { lastNonEmptyIndex = priority; }
+    }
+
+    Priority topPriority() {
+        //if (empty()) { throw PeekEmptyContainerException(); }
+        updateFirstNonEmptyIndex();
+        return firstNonEmptyIndex - offset;
+    }
+
+    // peek the item with highest priority.
+    const T& top() {
+        //if (empty()) { throw PeekEmptyContainerException(); }
+        updateFirstNonEmptyIndex();
+        return container[firstNonEmptyIndex].back();
+    }
+    std::vector<T>& tops() {
+        //if (empty()) { throw PeekEmptyContainerException(); }
+        updateFirstNonEmptyIndex();
+        return container[firstNonEmptyIndex];
+    }
+
+    // remove the item with highest priority.
+    void pop() {
+        //if (empty()) { return; }
+        updateFirstNonEmptyIndex();
+        container[firstNonEmptyIndex].pop_back();
+    }
+    void pop(T &item, szx::Random &randGen) {
+        //if (empty()) { return; }
+        std::vector<T> &bucket(tops());
+        int index = randGen.pick(static_cast<int>(bucket.size()));
+        item = bucket[index];
+        bucket[index] = bucket.back();
+        bucket.pop_back();
+    }
+
+    bool empty() {
+        updateFirstNonEmptyIndex();
+        return (firstNonEmptyIndex > lastNonEmptyIndex);
+    }
+
+    void clear() {
+        for (Priority i = firstNonEmptyIndex; i <= lastNonEmptyIndex; ++i) { container[i].clear(); }
+        firstNonEmptyIndex = InvalidIndex;
+        lastNonEmptyIndex = 0;
+    }
+
+    void reserve(Priority priority, Priority capacity) {
+        container[priority += offset].reserve(capacity);
+    }
+
+protected:
+    void updateFirstNonEmptyIndex() {
+        for (; firstNonEmptyIndex <= lastNonEmptyIndex; ++firstNonEmptyIndex) {
+            if (!container[firstNonEmptyIndex].empty()) { return; }
+        }
+    }
+
+
+    // the index of the first non-empty group.
+    Priority firstNonEmptyIndex;
+    // the index of the last non-empty group.
+    Priority lastNonEmptyIndex;
+    // `container[bucket][i]` is the i_th item in the bucket.
+    std::vector<std::vector<T>> container;
+    // the priority offset in case the priority is negative.
+    Priority offset;
+};
+
+
 #endif // SMART_SZX_GRAPH_COLORING_UTILITY_H

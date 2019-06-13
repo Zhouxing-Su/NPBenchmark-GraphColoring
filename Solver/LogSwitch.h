@@ -25,6 +25,7 @@ struct LogSwitch {
         Postprocess = Log::Level::On,
         Config = Log::Level::On,
         Model = Log::Level::On,
+        TabuSearch = Log::Level::On,
         MpSolver = Log::Level::On,
         Checker = Log::Level::On,
     };
