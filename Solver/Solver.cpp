@@ -1046,19 +1046,29 @@ bool Solver::optimizeAuctionSearch(Solution &sln) {
 
     // solution representation.
     struct Coloring {
-        Coloring(ID nodeNumber, ID conflictNumber) : conflictNum(conflictNumber), colors(nodeNumber) {}
+        Coloring(ID nodeNumber, ID conflictNumber) : conflictNum(conflictNumber),
+            weightedConflict(conflictNumber * Configuration::ConflictWeightBase), colors(nodeNumber) {
+        }
         Coloring(ID nodeNumber) : Coloring(nodeNumber, nodeNumber * nodeNumber) {}
         ID conflictNum;
+        ID weightedConflict;
         List<ID> colors;
     };
     Coloring optSln(nodeNum); // best solution.
     Coloring curSln(nodeNum, 0); // current solution.
     ID &conflictNum(curSln.conflictNum);
+    ID &weightedConflict(curSln.weightedConflict);
     List<ID> &colors(curSln.colors);
 
     auto retreiveOptSln = [&]() {
         for (auto n = optSln.colors.begin(); n != optSln.colors.end(); ++n) { sln.add_nodecolors(*n); }
         return true;
+    };
+
+    // weight.
+    Arr2D<ID> weights(nodeNum, colorNum, Configuration::ConflictWeightBase);
+    auto calcWeight = [&](ID node, ID color) {
+        return weights.at(node, color) * adjColorNums.at(node, color);
     };
 
     // perturbation.
@@ -1090,17 +1100,18 @@ bool Solver::optimizeAuctionSearch(Solution &sln) {
                 for (auto m = aux.adjList[n].begin(); m != aux.adjList[n].end(); ++m) {
                     ++adjColorNum[colors[*m]];
                 }
-                ID curConflict = adjColorNum[colors[n]];
+                ID curConflict = adjColorNum[colors[n]]; // calcWeight(n, colors[n]);
                 if (curConflict <= 0) { continue; }
                 for (ID c = 0; c < colorNum; ++c) {
                     if (c == colors[n]) { continue; }
-                    ID delta = adjColorNum[c] - curConflict;
+                    ID delta = Configuration::ConflictWeightBase * (adjColorNum[c] - curConflict); // calcWeight(n, c);
                     moveQueue.push({ n, c }, delta);
                 }
                 conflictNum += curConflict;
             }
         }
         conflictNum /= 2;
+        weightedConflict = conflictNum * Configuration::ConflictWeightBase;
     };
 
     initCacheAndObj();
@@ -1121,14 +1132,15 @@ bool Solver::optimizeAuctionSearch(Solution &sln) {
                 moveQueue.pop(move, rand);
                 oldColor = colors[move.node];
                 if (move.color == oldColor) { continue; }
-                ID realDelta = adjColorNums.at(move.node, move.color) - adjColorNums.at(move.node, oldColor);
+                ID realDelta = calcWeight(move.node, move.color) - calcWeight(move.node, oldColor);
                 if (delta == realDelta) { break; }
             }
 
             // update solution.
             colors[move.node] = move.color;
-            conflictNum += delta;
-            Log(LogSwitch::Szx::TabuSearch) << "opt=" << optSln.conflictNum << " cur=" << conflictNum << " node=" << move.node << " color=" << move.color << " delta=" << delta << endl;
+            weightedConflict += delta;
+            (conflictNum += adjColorNums.at(move.node, move.color)) -= adjColorNums.at(move.node, oldColor);
+            Log(LogSwitch::Szx::TabuSearch) << "opt=" << optSln.conflictNum << " cur=" << conflictNum << " w=" << weightedConflict << " node=" << move.node << " color=" << move.color << " delta=" << delta << endl;
             // update optima.
             if (conflictNum < optSln.conflictNum) {
                 optSln = curSln;
@@ -1136,18 +1148,22 @@ bool Solver::optimizeAuctionSearch(Solution &sln) {
                 perturbation = MaxPerturbation;
                 if (conflictNum <= 0) { return retreiveOptSln(); }
             }
+            // update weights when trapped in local optima.
+            if (delta >= 0) {
+                ++weights.at(move.node, oldColor);
+                //weightedConflict += adjColorNums.at(move.node, oldColor);
+            }
             // update cache.
-            moveQueue.push({ move.node, oldColor }, adjColorNums.at(move.node, oldColor) - adjColorNums.at(move.node, move.color));
+            moveQueue.push({ move.node, oldColor }, calcWeight(move.node, oldColor) - calcWeight(move.node, move.color));
             for (auto n = aux.adjList[move.node].begin(); n != aux.adjList[move.node].end(); ++n) {
                 if (isFixed[*n]) { continue; }
-                const auto &adjColorNum(adjColorNums[*n]);
-                --adjColorNum[oldColor];
-                ++adjColorNum[move.color];
+                --adjColorNums.at(*n, oldColor);
+                ++adjColorNums.at(*n, move.color);
                 ID color = colors[*n];
-                ID curConflict = adjColorNum[color];
-                if (curConflict <= 0) { continue; }
-                if (color != oldColor) { moveQueue.push({ *n, oldColor }, adjColorNum[oldColor] - curConflict); }
-                if (color != move.color) { moveQueue.push({ *n, move.color }, adjColorNum[move.color] - curConflict); }
+                ID curWeightedConflict = calcWeight(*n, color);
+                if (curWeightedConflict <= 0) { continue; }
+                if (color != oldColor) { moveQueue.push({ *n, oldColor }, calcWeight(*n, oldColor) - curWeightedConflict); }
+                if (color != move.color) { moveQueue.push({ *n, move.color }, calcWeight(*n, move.color) - curWeightedConflict); }
             }
         }
 
