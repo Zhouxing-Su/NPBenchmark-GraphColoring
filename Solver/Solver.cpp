@@ -888,6 +888,290 @@ bool Solver::optimizeLocalSearch(Solution &sln) {
     return retreiveOptSln();
 }
 
+bool Solver::optimizeTabuSearch(Solution &sln) {
+    ID nodeNum = input.graph().nodenum();
+    ID colorNum = input.colornum();
+
+    // cache for neighborhood moves.
+    struct Move {
+        ID node;
+        ID color;
+        //ID delta;
+    };
+    // OPTIMIZE[szx][0]: use L2BucketQueue?
+    PriorityQueue<Move> moveQueue(2 * nodeNum * Configuration::ConflictWeightBase, nodeNum * Configuration::ConflictWeightBase); // moveQueue.top() is the best imrpovement neighborhood move.
+    Arr2D<ID> adjColorNums(nodeNum, colorNum); // adjColorNums[n][c] is the number of adjacent nodes of node n in color c.
+
+    // solution representation.
+    struct Coloring {
+        Coloring(ID nodeNumber, ID conflictNumber) : conflictNum(conflictNumber), colors(nodeNumber) {}
+        Coloring(ID nodeNumber) : Coloring(nodeNumber, nodeNumber * nodeNumber) {}
+        ID conflictNum;
+        List<ID> colors;
+    };
+    Coloring optSln(nodeNum); // best solution.
+    Coloring curSln(nodeNum, 0); // current solution.
+    ID &conflictNum(curSln.conflictNum);
+    List<ID> &colors(curSln.colors);
+
+    auto retreiveOptSln = [&]() {
+        for (auto n = optSln.colors.begin(); n != optSln.colors.end(); ++n) { sln.add_nodecolors(*n); }
+        return true;
+    };
+
+    // perturbation.
+    List<ID> conflictNodes;
+    conflictNodes.reserve(nodeNum);
+
+    // reduction data.
+    ID fixedNodeNum = 0;
+    Arr<bool> isFixed(nodeNum, false);
+
+    // random initialization.
+    for (auto n = colors.begin(); n != colors.end(); ++n) { *n = rand.pick(colorNum); }
+    for (auto n = aux.clique.nodes.begin(); n != aux.clique.nodes.end(); ++n) {
+        isFixed[*n] = true;
+        colors[*n] = fixedNodeNum++;
+    }
+    // init cache and objective.
+    auto initCacheAndObj = [&]() {
+        conflictNum = 0;
+        moveQueue.clear();
+        adjColorNums.reset(Arr2D<ID>::ResetOption::AllBits0);
+        for (ID n = 0; n < nodeNum; ++n) {
+            const auto &adjColorNum(adjColorNums[n]);
+            if (isFixed[n]) {
+                for (auto m = aux.adjList[n].begin(); m != aux.adjList[n].end(); ++m) {
+                    if (colors[*m] == colors[n]) { ++conflictNum; }
+                }
+            } else {
+                for (auto m = aux.adjList[n].begin(); m != aux.adjList[n].end(); ++m) {
+                    ++adjColorNum[colors[*m]];
+                }
+                ID curConflict = adjColorNum[colors[n]];
+                if (curConflict <= 0) { continue; }
+                for (ID c = 0; c < colorNum; ++c) {
+                    if (c == colors[n]) { continue; }
+                    ID delta = adjColorNum[c] - curConflict;
+                    moveQueue.push({ n, c }, delta);
+                }
+                conflictNum += curConflict;
+            }
+        }
+        conflictNum /= 2;
+    };
+
+    initCacheAndObj();
+
+    const ID MaxStagnation = static_cast<ID>(Configuration::MaxStagnationCoefOnNodeNum * nodeNum);
+    const ID MaxPerturbation = static_cast<ID>(Configuration::MaxPerterbationCoefOnNodeNum * nodeNum);
+    const ID PerturbedNodeNum = static_cast<ID>(Configuration::PerturbedNodeRatio * nodeNum);
+    ID iter = 0;
+    for (ID perturbation = MaxPerturbation; perturbation > 0; --perturbation) {
+        for (ID stagnation = MaxStagnation; !timer.isTimeOut() && (stagnation > 0); ++iter, --stagnation) {
+            // find best move.
+            Move move;
+            ID delta;
+            ID oldColor;
+            for (;;) {
+                if (moveQueue.empty()) { return false; }
+                delta = moveQueue.topPriority();
+                moveQueue.pop(move, rand);
+                oldColor = colors[move.node];
+                if (move.color == oldColor) { continue; }
+                ID realDelta = adjColorNums.at(move.node, move.color) - adjColorNums.at(move.node, oldColor);
+                if (delta == realDelta) { break; }
+            }
+
+            // update solution.
+            colors[move.node] = move.color;
+            conflictNum += delta;
+            Log(LogSwitch::Szx::TabuSearch) << "opt=" << optSln.conflictNum << " cur=" << conflictNum << " node=" << move.node << " color=" << move.color << " delta=" << delta << endl;
+            // update optima.
+            if (conflictNum < optSln.conflictNum) {
+                optSln = curSln;
+                stagnation = MaxStagnation;
+                perturbation = MaxPerturbation;
+                if (conflictNum <= 0) { return retreiveOptSln(); }
+            }
+            // update cache.
+            moveQueue.push({ move.node, oldColor }, adjColorNums.at(move.node, oldColor) - adjColorNums.at(move.node, move.color));
+            for (auto n = aux.adjList[move.node].begin(); n != aux.adjList[move.node].end(); ++n) {
+                if (isFixed[*n]) { continue; }
+                const auto &adjColorNum(adjColorNums[*n]);
+                --adjColorNum[oldColor];
+                ++adjColorNum[move.color];
+                ID color = colors[*n];
+                ID curConflict = adjColorNum[color];
+                if (curConflict <= 0) { continue; }
+                if (color != oldColor) { moveQueue.push({ *n, oldColor }, adjColorNum[oldColor] - curConflict); }
+                if (color != move.color) { moveQueue.push({ *n, move.color }, adjColorNum[move.color] - curConflict); }
+            }
+        }
+
+        // pertrubation.
+        if (rand.isPicked(1, 8)) { curSln = optSln; }
+        conflictNodes.clear();
+        for (ID n = 0; n < nodeNum; ++n) {
+            if (adjColorNums.at(n, colors[n]) > 0) { conflictNodes.push_back(n); }
+        }
+        ID perturbOnConflictNodes = min(static_cast<ID>(conflictNodes.size()), static_cast<ID>(PerturbedNodeNum * Configuration::PerturbedConflictNodeRatio));
+        for (ID i = 0; i < perturbOnConflictNodes; ++i) {
+            ID node = conflictNodes[rand.pick(static_cast<ID>(conflictNodes.size()))];
+            if (!isFixed[node]) { colors[node] = rand.pick(colorNum); }
+        }
+        for (ID i = perturbOnConflictNodes; i < PerturbedNodeNum; ++i) {
+            ID node = rand.pick(nodeNum);
+            if (!isFixed[node]) { colors[node] = rand.pick(colorNum); }
+        }
+        initCacheAndObj();
+    }
+
+    return retreiveOptSln();
+}
+
+bool Solver::optimizeAuctionSearch(Solution &sln) {
+    ID nodeNum = input.graph().nodenum();
+    ID colorNum = input.colornum();
+
+    // cache for neighborhood moves.
+    struct Move {
+        ID node;
+        ID color;
+        //ID delta;
+    };
+    // OPTIMIZE[szx][0]: use L2BucketQueue?
+    PriorityQueue<Move> moveQueue(2 * nodeNum * Configuration::ConflictWeightBase, nodeNum * Configuration::ConflictWeightBase); // moveQueue.top() is the best imrpovement neighborhood move.
+    Arr2D<ID> adjColorNums(nodeNum, colorNum); // adjColorNums[n][c] is the number of adjacent nodes of node n in color c.
+
+    // solution representation.
+    struct Coloring {
+        Coloring(ID nodeNumber, ID conflictNumber) : conflictNum(conflictNumber), colors(nodeNumber) {}
+        Coloring(ID nodeNumber) : Coloring(nodeNumber, nodeNumber * nodeNumber) {}
+        ID conflictNum;
+        List<ID> colors;
+    };
+    Coloring optSln(nodeNum); // best solution.
+    Coloring curSln(nodeNum, 0); // current solution.
+    ID &conflictNum(curSln.conflictNum);
+    List<ID> &colors(curSln.colors);
+
+    auto retreiveOptSln = [&]() {
+        for (auto n = optSln.colors.begin(); n != optSln.colors.end(); ++n) { sln.add_nodecolors(*n); }
+        return true;
+    };
+
+    // perturbation.
+    List<ID> conflictNodes;
+    conflictNodes.reserve(nodeNum);
+
+    // reduction data.
+    ID fixedNodeNum = 0;
+    Arr<bool> isFixed(nodeNum, false);
+
+    // random initialization.
+    for (auto n = colors.begin(); n != colors.end(); ++n) { *n = rand.pick(colorNum); }
+    for (auto n = aux.clique.nodes.begin(); n != aux.clique.nodes.end(); ++n) {
+        isFixed[*n] = true;
+        colors[*n] = fixedNodeNum++;
+    }
+    // init cache and objective.
+    auto initCacheAndObj = [&]() {
+        conflictNum = 0;
+        moveQueue.clear();
+        adjColorNums.reset(Arr2D<ID>::ResetOption::AllBits0);
+        for (ID n = 0; n < nodeNum; ++n) {
+            const auto &adjColorNum(adjColorNums[n]);
+            if (isFixed[n]) {
+                for (auto m = aux.adjList[n].begin(); m != aux.adjList[n].end(); ++m) {
+                    if (colors[*m] == colors[n]) { ++conflictNum; }
+                }
+            } else {
+                for (auto m = aux.adjList[n].begin(); m != aux.adjList[n].end(); ++m) {
+                    ++adjColorNum[colors[*m]];
+                }
+                ID curConflict = adjColorNum[colors[n]];
+                if (curConflict <= 0) { continue; }
+                for (ID c = 0; c < colorNum; ++c) {
+                    if (c == colors[n]) { continue; }
+                    ID delta = adjColorNum[c] - curConflict;
+                    moveQueue.push({ n, c }, delta);
+                }
+                conflictNum += curConflict;
+            }
+        }
+        conflictNum /= 2;
+    };
+
+    initCacheAndObj();
+
+    const ID MaxStagnation = static_cast<ID>(Configuration::MaxStagnationCoefOnNodeNum * nodeNum);
+    const ID MaxPerturbation = static_cast<ID>(Configuration::MaxPerterbationCoefOnNodeNum * nodeNum);
+    const ID PerturbedNodeNum = static_cast<ID>(Configuration::PerturbedNodeRatio * nodeNum);
+    ID iter = 0;
+    for (ID perturbation = MaxPerturbation; perturbation > 0; --perturbation) {
+        for (ID stagnation = MaxStagnation; !timer.isTimeOut() && (stagnation > 0); ++iter, --stagnation) {
+            // find best move.
+            Move move;
+            ID delta;
+            ID oldColor;
+            for (;;) {
+                if (moveQueue.empty()) { return false; }
+                delta = moveQueue.topPriority();
+                moveQueue.pop(move, rand);
+                oldColor = colors[move.node];
+                if (move.color == oldColor) { continue; }
+                ID realDelta = adjColorNums.at(move.node, move.color) - adjColorNums.at(move.node, oldColor);
+                if (delta == realDelta) { break; }
+            }
+
+            // update solution.
+            colors[move.node] = move.color;
+            conflictNum += delta;
+            Log(LogSwitch::Szx::TabuSearch) << "opt=" << optSln.conflictNum << " cur=" << conflictNum << " node=" << move.node << " color=" << move.color << " delta=" << delta << endl;
+            // update optima.
+            if (conflictNum < optSln.conflictNum) {
+                optSln = curSln;
+                stagnation = MaxStagnation;
+                perturbation = MaxPerturbation;
+                if (conflictNum <= 0) { return retreiveOptSln(); }
+            }
+            // update cache.
+            moveQueue.push({ move.node, oldColor }, adjColorNums.at(move.node, oldColor) - adjColorNums.at(move.node, move.color));
+            for (auto n = aux.adjList[move.node].begin(); n != aux.adjList[move.node].end(); ++n) {
+                if (isFixed[*n]) { continue; }
+                const auto &adjColorNum(adjColorNums[*n]);
+                --adjColorNum[oldColor];
+                ++adjColorNum[move.color];
+                ID color = colors[*n];
+                ID curConflict = adjColorNum[color];
+                if (curConflict <= 0) { continue; }
+                if (color != oldColor) { moveQueue.push({ *n, oldColor }, adjColorNum[oldColor] - curConflict); }
+                if (color != move.color) { moveQueue.push({ *n, move.color }, adjColorNum[move.color] - curConflict); }
+            }
+        }
+
+        // pertrubation.
+        if (rand.isPicked(1, 8)) { curSln = optSln; }
+        conflictNodes.clear();
+        for (ID n = 0; n < nodeNum; ++n) {
+            if (adjColorNums.at(n, colors[n]) > 0) { conflictNodes.push_back(n); }
+        }
+        ID perturbOnConflictNodes = min(static_cast<ID>(conflictNodes.size()), static_cast<ID>(PerturbedNodeNum * Configuration::PerturbedConflictNodeRatio));
+        for (ID i = 0; i < perturbOnConflictNodes; ++i) {
+            ID node = conflictNodes[rand.pick(static_cast<ID>(conflictNodes.size()))];
+            if (!isFixed[node]) { colors[node] = rand.pick(colorNum); }
+        }
+        for (ID i = perturbOnConflictNodes; i < PerturbedNodeNum; ++i) {
+            ID node = rand.pick(nodeNum);
+            if (!isFixed[node]) { colors[node] = rand.pick(colorNum); }
+        }
+        initCacheAndObj();
+    }
+
+    return retreiveOptSln();
+}
+
 void Solver::detectClique() {
     if (!aux.fixedColors.empty()) { return; } // already initialized.
 
