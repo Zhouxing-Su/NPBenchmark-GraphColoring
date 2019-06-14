@@ -282,8 +282,8 @@ bool Solver::optimize(Solution &sln, ID workerId) {
     //status = optimizeIntegerDecisionModel(sln);
     //status = optimizeCoveringRelaxedBoolDecisionModel(sln);
     //status = optimizeCoveringBoolDecisionModel(sln);
-    status = optimizeLocalSearch(sln);
-    //status = optimizeTabuSearch(sln);
+    //status = optimizeLocalSearch(sln);
+    status = optimizeTabuSearch(sln);
     //status = optimizeAuctionSearch(sln);
 
     sln.colorNum = input.colornum(); // record obj.
@@ -756,8 +756,7 @@ bool Solver::optimizeLocalSearch(Solution &sln) {
         ID color;
         //ID delta;
     };
-    // OPTIMIZE[szx][0]: use L2BucketQueue?
-    PriorityQueue<Move> moveQueue(2 * nodeNum * Configuration::ConflictWeightBase, nodeNum * Configuration::ConflictWeightBase); // moveQueue.top() is the best imrpovement neighborhood move.
+    PriorityQueue<Move> moveQueue(2 * nodeNum, nodeNum); // moveQueue.top() is the best imrpovement neighborhood move.
     Arr2D<ID> adjColorNums(nodeNum, colorNum); // adjColorNums[n][c] is the number of adjacent nodes of node n in color c.
 
     // solution representation.
@@ -821,12 +820,12 @@ bool Solver::optimizeLocalSearch(Solution &sln) {
 
     initCacheAndObj();
 
-    const ID MaxStagnation = static_cast<ID>(Configuration::MaxStagnationCoefOnNodeNum * nodeNum);
-    const ID MaxPerturbation = static_cast<ID>(Configuration::MaxPerterbationCoefOnNodeNum * nodeNum);
-    const ID PerturbedNodeNum = static_cast<ID>(Configuration::PerturbedNodeRatio * nodeNum);
-    ID iter = 0;
-    for (ID perturbation = MaxPerturbation; perturbation > 0; --perturbation) {
-        for (ID stagnation = MaxStagnation; !timer.isTimeOut() && (stagnation > 0); ++iter, --stagnation) {
+    const Iteration MaxStagnation = static_cast<Iteration>(Configuration::MaxStagnationCoefOnNodeNum * nodeNum);
+    const Iteration MaxPerturbation = static_cast<Iteration>(Configuration::MaxPerterbationCoefOnNodeNum * nodeNum);
+    const Iteration PerturbedNodeNum = static_cast<Iteration>(Configuration::PerturbedNodeRatio * nodeNum);
+    Iteration iter = 0;
+    for (Iteration perturbation = MaxPerturbation; perturbation > 0; --perturbation) {
+        for (Iteration stagnation = MaxStagnation; !timer.isTimeOut() && (stagnation > 0); ++iter, --stagnation) {
             // find best move.
             Move move;
             ID delta;
@@ -898,8 +897,7 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
         ID color;
         //ID delta;
     };
-    // OPTIMIZE[szx][0]: use L2BucketQueue?
-    PriorityQueue<Move> moveQueue(2 * nodeNum * Configuration::ConflictWeightBase, nodeNum * Configuration::ConflictWeightBase); // moveQueue.top() is the best imrpovement neighborhood move.
+    PriorityQueue<Move> moveQueue(2 * nodeNum, nodeNum); // moveQueue.top() is the best imrpovement neighborhood move.
     Arr2D<ID> adjColorNums(nodeNum, colorNum); // adjColorNums[n][c] is the number of adjacent nodes of node n in color c.
 
     // solution representation.
@@ -963,12 +961,12 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
 
     initCacheAndObj();
 
-    const ID MaxStagnation = static_cast<ID>(Configuration::MaxStagnationCoefOnNodeNum * nodeNum);
-    const ID MaxPerturbation = static_cast<ID>(Configuration::MaxPerterbationCoefOnNodeNum * nodeNum);
-    const ID PerturbedNodeNum = static_cast<ID>(Configuration::PerturbedNodeRatio * nodeNum);
-    ID iter = 0;
-    for (ID perturbation = MaxPerturbation; perturbation > 0; --perturbation) {
-        for (ID stagnation = MaxStagnation; !timer.isTimeOut() && (stagnation > 0); ++iter, --stagnation) {
+    const Iteration MaxStagnation = static_cast<Iteration>(Configuration::MaxStagnationCoefOnNodeNum * nodeNum);
+    const Iteration MaxPerturbation = static_cast<Iteration>(Configuration::MaxPerterbationCoefOnNodeNum * nodeNum);
+    const Iteration PerturbedNodeNum = static_cast<Iteration>(Configuration::PerturbedNodeRatio * nodeNum);
+    Iteration iter = 0;
+    for (Iteration perturbation = MaxPerturbation; perturbation > 0; --perturbation) {
+        for (Iteration stagnation = MaxStagnation; !timer.isTimeOut() && (stagnation > 0); ++iter, --stagnation) {
             // find best move.
             Move move;
             ID delta;
@@ -1116,12 +1114,12 @@ bool Solver::optimizeAuctionSearch(Solution &sln) {
 
     initCacheAndObj();
 
-    const ID MaxStagnation = static_cast<ID>(Configuration::MaxStagnationCoefOnNodeNum * nodeNum);
-    const ID MaxPerturbation = static_cast<ID>(Configuration::MaxPerterbationCoefOnNodeNum * nodeNum);
-    const ID PerturbedNodeNum = static_cast<ID>(Configuration::PerturbedNodeRatio * nodeNum);
-    ID iter = 0;
-    for (ID perturbation = MaxPerturbation; perturbation > 0; --perturbation) {
-        for (ID stagnation = MaxStagnation; !timer.isTimeOut() && (stagnation > 0); ++iter, --stagnation) {
+    const Iteration MaxStagnation = static_cast<Iteration>(Configuration::MaxStagnationCoefOnNodeNum * nodeNum);
+    const Iteration MaxPerturbation = static_cast<Iteration>(Configuration::MaxPerterbationCoefOnNodeNum * nodeNum);
+    const Iteration PerturbedNodeNum = static_cast<Iteration>(Configuration::PerturbedNodeRatio * nodeNum);
+    Iteration iter = 0;
+    for (Iteration perturbation = MaxPerturbation; perturbation > 0; --perturbation) {
+        for (Iteration stagnation = MaxStagnation; !timer.isTimeOut() && (stagnation > 0); ++iter, --stagnation) {
             // find best move.
             Move move;
             ID delta;
