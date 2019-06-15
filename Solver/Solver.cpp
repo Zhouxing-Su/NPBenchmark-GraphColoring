@@ -897,6 +897,10 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
         ID color;
         //ID delta;
     };
+    struct MoveEx : public Move {
+        ID delta = Problem::MaxConflictNum;
+        ID oldColor;
+    };
     PriorityQueue<Move> moveQueue(2 * nodeNum, nodeNum); // moveQueue.top() is the best imrpovement neighborhood move.
     Arr2D<ID> adjColorNums(nodeNum, colorNum); // adjColorNums[n][c] is the number of adjacent nodes of node n in color c.
 
@@ -917,6 +921,11 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
         for (auto n = solution.colors.begin(); n != solution.colors.end(); ++n) { sln.add_nodecolors(*n); }
         return true;
     };
+
+    // tabu.
+    const Iteration MaxTabuTenure = nodeNum;
+    LoopQueue<List<Move>> tabuMoves(MaxTabuTenure);
+    PriorityQueue<Move> tabuMoveQueue(2 * nodeNum, nodeNum);
 
     // perturbation.
     List<ID> conflictNodes;
@@ -960,7 +969,6 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
         conflictNum /= 2;
     };
 
-    const ID MaxConflict = nodeNum * nodeNum;
     const Iteration MaxStagnation = static_cast<Iteration>(Configuration::MaxStagnationCoefOnNodeNum * nodeNum);
     const Iteration MaxPerturbation = static_cast<Iteration>(Configuration::MaxPerterbationCoefOnNodeNum * nodeNum);
     const Iteration PerturbedNodeNum = static_cast<Iteration>(Configuration::PerturbedNodeRatio * nodeNum);
@@ -969,23 +977,31 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
         initCacheAndObj();
         for (Iteration stagnation = MaxStagnation; !timer.isTimeOut() && (stagnation > 0); ++iter, --stagnation) {
             // find best move.
-            Move move;
-            ID delta = MaxConflict;
-            ID oldColor;
-            for (;;) {
-                if (moveQueue.empty()) { return false; }
-                delta = moveQueue.topPriority();
+            MoveEx move;
+            MoveEx tabuMove;
+            while (!moveQueue.empty()) { // best non-tabu move.
+                move.delta = moveQueue.topPriority();
                 moveQueue.pop(move, rand);
-                oldColor = colors[move.node];
-                if (move.color == oldColor) { continue; }
-                ID realDelta = adjColorNums.at(move.node, move.color) - adjColorNums.at(move.node, oldColor);
-                if (delta == realDelta) { break; }
+                move.oldColor = colors[move.node];
+                if (move.color == move.oldColor) { continue; }
+                ID realDelta = adjColorNums.at(move.node, move.color) - adjColorNums.at(move.node, move.oldColor);
+                if (move.delta == realDelta) { break; }
             }
+            while (!tabuMoveQueue.empty()) { // best tabu move.
+                tabuMove.delta = tabuMoveQueue.topPriority();
+                if (((conflictNum + tabuMove.delta) >= localOptSln.conflictNum) || (tabuMove.delta >= move.delta)) { break; }
+                tabuMoveQueue.pop(tabuMove, rand);
+                tabuMove.oldColor = colors[tabuMove.node];
+                if (tabuMove.color == tabuMove.oldColor) { continue; }
+                ID realDelta = adjColorNums.at(tabuMove.node, tabuMove.color) - adjColorNums.at(tabuMove.node, tabuMove.oldColor);
+                if (tabuMove.delta == realDelta) { move = tabuMove; break; }
+            }
+            //if (delta >= MaxConflict) { return false; }
 
             // update solution.
             colors[move.node] = move.color;
-            conflictNum += delta;
-            Log(LogSwitch::Szx::TabuSearch) << "iter=" << iter << " opt=" << optSln.conflictNum << " cur=" << conflictNum << " node=" << move.node << " color=" << move.color << " delta=" << delta << endl;
+            conflictNum += move.delta;
+            Log(LogSwitch::Szx::TabuSearch) << "iter=" << iter << " opt=" << optSln.conflictNum << " cur=" << conflictNum << " node=" << move.node << " color=" << move.color << " delta=" << move.delta << endl;
             // update optima.
             if (conflictNum < localOptSln.conflictNum) {
                 if (conflictNum <= 0) { return retreiveSln(curSln); }
@@ -995,19 +1011,29 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
                 perturbation = MaxPerturbation;
             }
             // update cache.
-
             for (auto n = aux.adjList[move.node].begin(); n != aux.adjList[move.node].end(); ++n) {
                 if (isFixed[*n]) { continue; }
                 const auto &adjColorNum(adjColorNums[*n]);
-                --adjColorNum[oldColor];
+                --adjColorNum[move.oldColor];
                 ++adjColorNum[move.color];
                 ID color = colors[*n];
                 ID curConflict = adjColorNum[color];
                 if (curConflict <= 0) { continue; }
-                if (color != oldColor) { moveQueue.push({ *n, oldColor }, adjColorNum[oldColor] - curConflict); }
+                if (color != move.oldColor) { moveQueue.push({ *n, move.oldColor }, adjColorNum[move.oldColor] - curConflict); }
                 if (color != move.color) { moveQueue.push({ *n, move.color }, adjColorNum[move.color] - curConflict); }
             }
-            moveQueue.push({ move.node, oldColor }, adjColorNums.at(move.node, oldColor) - adjColorNums.at(move.node, move.color));        }
+            // update tabu.
+            Move reverseMove = { move.node, move.oldColor };
+            tabuMoveQueue.push(reverseMove, -move.delta);
+            Iteration tabuTenure = min(conflictNum, 20) + rand.pick(2, 10); // TODO[szx][5]: parameterize the constant!
+            tabuMoves.front(tabuTenure).push_back(reverseMove);
+            // transfer tabu moves to non-tabu moves.
+            for (auto tm = tabuMoves.front().begin(); tm != tabuMoves.front().end(); ++tm) {
+                moveQueue.push(*tm, adjColorNums.at(tm->node, tm->color) - adjColorNums.at(tm->node, colors[tm->node]));
+            }
+            tabuMoves.front().clear();
+            tabuMoves.popFront();
+        }
 
         // pertrubation.
         curSln = (rand.isPicked(1, 4) ? optSln : localOptSln); // TODO[szx][5]: parameterize the constant!

@@ -55,7 +55,9 @@ public:
 public:
     enum {
         MaxNodeNum = 5000,
+        MaxEdgeNum = MaxNodeNum * MaxNodeNum,
         MaxColorNum = 5000,
+        MaxConflictNum = MaxEdgeNum,
 
         InvalidId = -1,
     };
