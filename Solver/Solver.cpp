@@ -767,12 +767,13 @@ bool Solver::optimizeLocalSearch(Solution &sln) {
         List<ID> colors;
     };
     Coloring optSln(nodeNum); // best solution.
+    Coloring localOptSln(nodeNum); // best solution in current trajectory.
     Coloring curSln(nodeNum, 0); // current solution.
     ID &conflictNum(curSln.conflictNum);
     List<ID> &colors(curSln.colors);
 
-    auto retreiveOptSln = [&]() {
-        for (auto n = optSln.colors.begin(); n != optSln.colors.end(); ++n) { sln.add_nodecolors(*n); }
+    auto retreiveSln = [&](const Coloring &solution) {
+        for (auto n = solution.colors.begin(); n != solution.colors.end(); ++n) { sln.add_nodecolors(*n); }
         return true;
     };
 
@@ -818,13 +819,12 @@ bool Solver::optimizeLocalSearch(Solution &sln) {
         conflictNum /= 2;
     };
 
-    initCacheAndObj();
-
     const Iteration MaxStagnation = static_cast<Iteration>(Configuration::MaxStagnationCoefOnNodeNum * nodeNum);
     const Iteration MaxPerturbation = static_cast<Iteration>(Configuration::MaxPerterbationCoefOnNodeNum * nodeNum);
     const Iteration PerturbedNodeNum = static_cast<Iteration>(Configuration::PerturbedNodeRatio * nodeNum);
     Iteration iter = 0;
     for (Iteration perturbation = MaxPerturbation; perturbation > 0; --perturbation) {
+        initCacheAndObj();
         for (Iteration stagnation = MaxStagnation; !timer.isTimeOut() && (stagnation > 0); ++iter, --stagnation) {
             // find best move.
             Move move;
@@ -843,16 +843,16 @@ bool Solver::optimizeLocalSearch(Solution &sln) {
             // update solution.
             colors[move.node] = move.color;
             conflictNum += delta;
-            Log(LogSwitch::Szx::TabuSearch) << "opt=" << optSln.conflictNum << " cur=" << conflictNum << " node=" << move.node << " color=" << move.color << " delta=" << delta << endl;
+            Log(LogSwitch::Szx::TabuSearch) << "iter=" << iter << "opt=" << optSln.conflictNum << " cur=" << conflictNum << " node=" << move.node << " color=" << move.color << " delta=" << delta << endl;
             // update optima.
-            if (conflictNum < optSln.conflictNum) {
-                optSln = curSln;
+            if (conflictNum < localOptSln.conflictNum) {
+                if (conflictNum <= 0) { return retreiveSln(curSln); }
+                if (conflictNum < optSln.conflictNum) { optSln = curSln; }
+                localOptSln = curSln;
                 stagnation = MaxStagnation;
                 perturbation = MaxPerturbation;
-                if (conflictNum <= 0) { return retreiveOptSln(); }
             }
             // update cache.
-            moveQueue.push({ move.node, oldColor }, adjColorNums.at(move.node, oldColor) - adjColorNums.at(move.node, move.color));
             for (auto n = aux.adjList[move.node].begin(); n != aux.adjList[move.node].end(); ++n) {
                 if (isFixed[*n]) { continue; }
                 const auto &adjColorNum(adjColorNums[*n]);
@@ -864,10 +864,11 @@ bool Solver::optimizeLocalSearch(Solution &sln) {
                 if (color != oldColor) { moveQueue.push({ *n, oldColor }, adjColorNum[oldColor] - curConflict); }
                 if (color != move.color) { moveQueue.push({ *n, move.color }, adjColorNum[move.color] - curConflict); }
             }
+            moveQueue.push({ move.node, oldColor }, -delta);
         }
 
         // pertrubation.
-        if (rand.isPicked(1, 8)) { curSln = optSln; }
+        curSln = (rand.isPicked(1, 4) ? optSln : localOptSln); // TODO[szx][5]: parameterize the constant!
         conflictNodes.clear();
         for (ID n = 0; n < nodeNum; ++n) {
             if (adjColorNums.at(n, colors[n]) > 0) { conflictNodes.push_back(n); }
@@ -881,10 +882,9 @@ bool Solver::optimizeLocalSearch(Solution &sln) {
             ID node = rand.pick(nodeNum);
             if (!isFixed[node]) { colors[node] = rand.pick(colorNum); }
         }
-        initCacheAndObj();
     }
 
-    return retreiveOptSln();
+    return retreiveSln(optSln);
 }
 
 bool Solver::optimizeTabuSearch(Solution &sln) {
@@ -908,12 +908,13 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
         List<ID> colors;
     };
     Coloring optSln(nodeNum); // best solution.
+    Coloring localOptSln(nodeNum); // best solution in current trajectory.
     Coloring curSln(nodeNum, 0); // current solution.
     ID &conflictNum(curSln.conflictNum);
     List<ID> &colors(curSln.colors);
 
-    auto retreiveOptSln = [&]() {
-        for (auto n = optSln.colors.begin(); n != optSln.colors.end(); ++n) { sln.add_nodecolors(*n); }
+    auto retreiveSln = [&](const Coloring &solution) {
+        for (auto n = solution.colors.begin(); n != solution.colors.end(); ++n) { sln.add_nodecolors(*n); }
         return true;
     };
 
@@ -959,17 +960,17 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
         conflictNum /= 2;
     };
 
-    initCacheAndObj();
-
+    const ID MaxConflict = nodeNum * nodeNum;
     const Iteration MaxStagnation = static_cast<Iteration>(Configuration::MaxStagnationCoefOnNodeNum * nodeNum);
     const Iteration MaxPerturbation = static_cast<Iteration>(Configuration::MaxPerterbationCoefOnNodeNum * nodeNum);
     const Iteration PerturbedNodeNum = static_cast<Iteration>(Configuration::PerturbedNodeRatio * nodeNum);
     Iteration iter = 0;
     for (Iteration perturbation = MaxPerturbation; perturbation > 0; --perturbation) {
+        initCacheAndObj();
         for (Iteration stagnation = MaxStagnation; !timer.isTimeOut() && (stagnation > 0); ++iter, --stagnation) {
             // find best move.
             Move move;
-            ID delta;
+            ID delta = MaxConflict;
             ID oldColor;
             for (;;) {
                 if (moveQueue.empty()) { return false; }
@@ -984,16 +985,17 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
             // update solution.
             colors[move.node] = move.color;
             conflictNum += delta;
-            Log(LogSwitch::Szx::TabuSearch) << "opt=" << optSln.conflictNum << " cur=" << conflictNum << " node=" << move.node << " color=" << move.color << " delta=" << delta << endl;
+            Log(LogSwitch::Szx::TabuSearch) << "iter=" << iter << " opt=" << optSln.conflictNum << " cur=" << conflictNum << " node=" << move.node << " color=" << move.color << " delta=" << delta << endl;
             // update optima.
-            if (conflictNum < optSln.conflictNum) {
-                optSln = curSln;
+            if (conflictNum < localOptSln.conflictNum) {
+                if (conflictNum <= 0) { return retreiveSln(curSln); }
+                if (conflictNum < optSln.conflictNum) { optSln = curSln; }
+                localOptSln = curSln;
                 stagnation = MaxStagnation;
                 perturbation = MaxPerturbation;
-                if (conflictNum <= 0) { return retreiveOptSln(); }
             }
             // update cache.
-            moveQueue.push({ move.node, oldColor }, adjColorNums.at(move.node, oldColor) - adjColorNums.at(move.node, move.color));
+
             for (auto n = aux.adjList[move.node].begin(); n != aux.adjList[move.node].end(); ++n) {
                 if (isFixed[*n]) { continue; }
                 const auto &adjColorNum(adjColorNums[*n]);
@@ -1005,10 +1007,10 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
                 if (color != oldColor) { moveQueue.push({ *n, oldColor }, adjColorNum[oldColor] - curConflict); }
                 if (color != move.color) { moveQueue.push({ *n, move.color }, adjColorNum[move.color] - curConflict); }
             }
-        }
+            moveQueue.push({ move.node, oldColor }, adjColorNums.at(move.node, oldColor) - adjColorNums.at(move.node, move.color));        }
 
         // pertrubation.
-        if (rand.isPicked(1, 8)) { curSln = optSln; }
+        curSln = (rand.isPicked(1, 4) ? optSln : localOptSln); // TODO[szx][5]: parameterize the constant!
         conflictNodes.clear();
         for (ID n = 0; n < nodeNum; ++n) {
             if (adjColorNums.at(n, colors[n]) > 0) { conflictNodes.push_back(n); }
@@ -1022,10 +1024,9 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
             ID node = rand.pick(nodeNum);
             if (!isFixed[node]) { colors[node] = rand.pick(colorNum); }
         }
-        initCacheAndObj();
     }
 
-    return retreiveOptSln();
+    return retreiveSln(optSln);
 }
 
 bool Solver::optimizeAuctionSearch(Solution &sln) {
@@ -1053,13 +1054,14 @@ bool Solver::optimizeAuctionSearch(Solution &sln) {
         List<ID> colors;
     };
     Coloring optSln(nodeNum); // best solution.
+    Coloring localOptSln(nodeNum); // best solution in current trajectory.
     Coloring curSln(nodeNum, 0); // current solution.
     ID &conflictNum(curSln.conflictNum);
     ID &weightedConflict(curSln.weightedConflict);
     List<ID> &colors(curSln.colors);
 
-    auto retreiveOptSln = [&]() {
-        for (auto n = optSln.colors.begin(); n != optSln.colors.end(); ++n) { sln.add_nodecolors(*n); }
+    auto retreiveSln = [&](const Coloring &solution) {
+        for (auto n = solution.colors.begin(); n != solution.colors.end(); ++n) { sln.add_nodecolors(*n); }
         return true;
     };
 
@@ -1112,13 +1114,12 @@ bool Solver::optimizeAuctionSearch(Solution &sln) {
         weightedConflict = conflictNum * Configuration::ConflictWeightBase;
     };
 
-    initCacheAndObj();
-
     const Iteration MaxStagnation = static_cast<Iteration>(Configuration::MaxStagnationCoefOnNodeNum * nodeNum);
     const Iteration MaxPerturbation = static_cast<Iteration>(Configuration::MaxPerterbationCoefOnNodeNum * nodeNum);
     const Iteration PerturbedNodeNum = static_cast<Iteration>(Configuration::PerturbedNodeRatio * nodeNum);
     Iteration iter = 0;
     for (Iteration perturbation = MaxPerturbation; perturbation > 0; --perturbation) {
+        initCacheAndObj();
         for (Iteration stagnation = MaxStagnation; !timer.isTimeOut() && (stagnation > 0); ++iter, --stagnation) {
             // find best move.
             Move move;
@@ -1138,13 +1139,14 @@ bool Solver::optimizeAuctionSearch(Solution &sln) {
             colors[move.node] = move.color;
             weightedConflict += delta;
             (conflictNum += adjColorNums.at(move.node, move.color)) -= adjColorNums.at(move.node, oldColor);
-            Log(LogSwitch::Szx::TabuSearch) << "opt=" << optSln.conflictNum << " cur=" << conflictNum << " w=" << weightedConflict << " node=" << move.node << " color=" << move.color << " delta=" << delta << endl;
+            Log(LogSwitch::Szx::TabuSearch) << "iter=" << iter << "opt=" << optSln.conflictNum << " cur=" << conflictNum << " w=" << weightedConflict << " node=" << move.node << " color=" << move.color << " delta=" << delta << endl;
             // update optima.
-            if (conflictNum < optSln.conflictNum) {
-                optSln = curSln;
+            if (conflictNum < localOptSln.conflictNum) {
+                if (conflictNum <= 0) { return retreiveSln(curSln); }
+                if (conflictNum < optSln.conflictNum) { optSln = curSln; }
+                localOptSln = curSln;
                 stagnation = MaxStagnation;
                 perturbation = MaxPerturbation;
-                if (conflictNum <= 0) { return retreiveOptSln(); }
             }
             // update weights when trapped in local optima.
             if (delta >= 0) {
@@ -1152,7 +1154,6 @@ bool Solver::optimizeAuctionSearch(Solution &sln) {
                 //weightedConflict += adjColorNums.at(move.node, oldColor);
             }
             // update cache.
-            moveQueue.push({ move.node, oldColor }, calcWeight(move.node, oldColor) - calcWeight(move.node, move.color));
             for (auto n = aux.adjList[move.node].begin(); n != aux.adjList[move.node].end(); ++n) {
                 if (isFixed[*n]) { continue; }
                 --adjColorNums.at(*n, oldColor);
@@ -1163,10 +1164,11 @@ bool Solver::optimizeAuctionSearch(Solution &sln) {
                 if (color != oldColor) { moveQueue.push({ *n, oldColor }, calcWeight(*n, oldColor) - curWeightedConflict); }
                 if (color != move.color) { moveQueue.push({ *n, move.color }, calcWeight(*n, move.color) - curWeightedConflict); }
             }
+            moveQueue.push({ move.node, oldColor }, -delta);
         }
 
         // pertrubation.
-        if (rand.isPicked(1, 8)) { curSln = optSln; }
+        curSln = (rand.isPicked(1, 4) ? optSln : localOptSln); // TODO[szx][5]: parameterize the constant!
         conflictNodes.clear();
         for (ID n = 0; n < nodeNum; ++n) {
             if (adjColorNums.at(n, colors[n]) > 0) { conflictNodes.push_back(n); }
@@ -1180,10 +1182,9 @@ bool Solver::optimizeAuctionSearch(Solution &sln) {
             ID node = rand.pick(nodeNum);
             if (!isFixed[node]) { colors[node] = rand.pick(colorNum); }
         }
-        initCacheAndObj();
     }
 
-    return retreiveOptSln();
+    return retreiveSln(optSln);
 }
 
 void Solver::detectClique() {

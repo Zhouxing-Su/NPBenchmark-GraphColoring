@@ -813,9 +813,18 @@ public:
     void clear() { head = nextIndex(tail); }
 
 
+    T& front() { return q[head]; }
     const T& front() const { return q[head]; }
+    T& back() { return q[tail]; }
     const T& back() const { return q[tail]; }
 
+    T& front(IndexType offset) { return q[shiftIndex(head, offset)]; }
+    const T& front(IndexType offset) const { return q[shiftIndex(head, offset)]; }
+    T& back(IndexType offset) { return q[shiftIndex(tail, offset)]; }
+    const T& back(IndexType offset) const { return q[shiftIndex(tail, offset)]; }
+
+    void pushBack() { increaseIndex(tail); }
+    void pushFront() { decreaseIndex(head); }
     void pushBack(const T& item) { q[increaseIndex(tail)] = item; }
     void pushFront(const T& item) { q[decreaseIndex(head)] = item; }
 
@@ -823,8 +832,13 @@ public:
     void popFront() { increaseIndex(head); }
 
     bool empty() const { return (head == nextIndex(tail)); }
+    IndexType size() const { return (tail - head + 1); }
 
 protected:
+    IndexType shiftIndex(IndexType index, IndexType offset) {
+        return (((index += offset) %= len) += len) %= len;
+    }
+
     IndexType& increaseIndex(IndexType &index) const {
         if ((++index) >= len) { index -= len; }
         return index;
