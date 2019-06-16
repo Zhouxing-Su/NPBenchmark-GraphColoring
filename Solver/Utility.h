@@ -310,6 +310,44 @@ public:
     Generator rgen;
 };
 
+class Sampling1 { // pick single item.
+public:
+    enum StartCount { NoPresetElement = 0, WithPresetElement = 1 };
+
+    Sampling1(Random &randomNumberGenerator, int startCount = StartCount::WithPresetElement)
+        : rgen(randomNumberGenerator) {
+        reset(startCount);
+    }
+
+    // start a new selection on another N elements.
+    // sometimes the first element is pre-selected with the possibility of 1, 
+    // so you can pass 1 in this condition to leave out a isPicked() call.
+    void reset(int startCount = StartCount::WithPresetElement) { pickCount = startCount; }
+
+    // call this for each of the N elements (N times in total) to judge 
+    // whether each of them is selected. 
+    // only the last returned "true" means that element is selected finally.
+    bool isPicked() { return ((rgen() % (++pickCount)) == 0); }
+
+    // if (newItem != minItem), return as their strict order. else select one
+    // as the minimal in the sequence of isMinimal() calls randomly.
+    template<typename T>
+    bool isMinimal(const T &minItem, const T &newItem) {
+        if (newItem > minItem) {
+            return false;
+        } else if (newItem == minItem) {
+            return isPicked();
+        } else {
+            reset();
+            return true;
+        }
+    }
+
+protected:
+    Random &rgen;
+    int pickCount; // number of elements that have been considered.
+};
+
 // count | 1 2 3 4 ...  k   k+1   k+2   k+3  ...  n
 // ------|------------------------------------------
 // index | 0 1 2 3 ... k-1   k    k+1   k+2  ... n-1
@@ -341,9 +379,7 @@ public:
         }
     }
 
-    void reset() {
-        pickCount = 0;
-    }
+    void reset() { pickCount = 0; }
 
 protected:
     Random &rgen;
