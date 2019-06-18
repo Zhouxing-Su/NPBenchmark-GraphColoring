@@ -929,6 +929,9 @@ public:
         updateFirstNonEmptyIndex();
         return container[firstNonEmptyIndex];
     }
+    std::vector<T>& getBucket(Priority priority) {
+        return container[priority += offset];
+    }
 
     // remove the item with highest priority.
     void pop() {
@@ -941,8 +944,7 @@ public:
         std::vector<T> &bucket(tops());
         int index = randGen.pick(static_cast<int>(bucket.size()));
         item = bucket[index];
-        bucket[index] = bucket.back();
-        bucket.pop_back();
+        erase(bucket, index);
     }
 
     bool empty() {
@@ -965,6 +967,14 @@ protected:
         for (; firstNonEmptyIndex <= lastNonEmptyIndex; ++firstNonEmptyIndex) {
             if (!container[firstNonEmptyIndex].empty()) { return; }
         }
+    }
+
+    void erase(std::vector<T> &bucket, typename std::vector<T>::iterator iter) {
+        *iter = bucket.back();
+        bucket.pop_back();
+    }
+    void erase(std::vector<T> &bucket, Priority index) {
+        erase(bucket, bucket.begin() + index);
     }
 
 
