@@ -781,6 +781,11 @@ public:
     static T bound(T num, T lb, T ub) {
         return std::min(std::max(num, lb), ub);
     }
+
+    template<typename T>
+    static void updateMin(T &minimum, T newValue) {
+        if (newValue < minimum) { minimum = newValue; }
+    }
 };
 
 

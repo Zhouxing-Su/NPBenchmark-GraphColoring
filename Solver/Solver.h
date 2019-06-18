@@ -92,7 +92,7 @@ public:
         static constexpr tsm::Weight TsmPrecision = 1000000;
 
         static constexpr ID ConflictWeightBase = 100;
-        static constexpr double MaxStagnationCoefOnNodeNum = 128;
+        static constexpr double MaxStagnationCoefOnNodeNum = 512;
         static constexpr double MaxPerterbationCoefOnNodeNum = 0.5;
         static constexpr double PerturbedNodeRatio = 0.125;
         static constexpr double PerturbedConflictNodeRatio = 0.5;
@@ -207,7 +207,7 @@ public:
 public:
     Solver(const Problem::Input &inputData, const Environment &environment, const Configuration &config)
         : input(inputData), env(environment), cfg(config), rand(environment.randSeed),
-        timer(std::chrono::milliseconds(environment.msTimeout)), iteration(1) {}
+        timer(std::chrono::milliseconds(environment.msTimeout)), iteration(0) {}
     #pragma endregion Constructor
 
     #pragma region Method

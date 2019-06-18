@@ -891,6 +891,7 @@ bool Solver::optimizeLocalSearch(Solution &sln) {
 bool Solver::optimizeTabuSearchPQ(Solution &sln) {
     ID nodeNum = input.graph().nodenum();
     ID colorNum = input.colornum();
+    if (iteration <= 0) { iteration = env.maxIter; }
 
     // cache for neighborhood moves.
     struct Move {
@@ -917,11 +918,6 @@ bool Solver::optimizeTabuSearchPQ(Solution &sln) {
     Coloring curSln(nodeNum, 0); // current solution.
     ID &conflictNum(curSln.conflictNum);
     List<ID> &colors(curSln.colors);
-
-    auto retreiveSln = [&](const Coloring &solution) {
-        for (auto n = solution.colors.begin(); n != solution.colors.end(); ++n) { sln.add_nodecolors(*n); }
-        return true;
-    };
 
     // tabu.
     const Iteration MaxTabuTenure = nodeNum;
@@ -978,6 +974,14 @@ bool Solver::optimizeTabuSearchPQ(Solution &sln) {
     Iteration iter = 0;
     auto isTabued = [&](const Move &move) { return iter < tabuTab.at(move.node, move.color); };
     auto pushMove = [&](const Move &move, ID objDelta) { (isTabued(move) ? tabuMoveQueue : moveQueue).push(move, objDelta); };
+    Timer::TimePoint searchBegin = Timer::Clock::now();
+    auto retreiveSln = [&](const Coloring &solution) {
+        Math::updateMin(iteration, iter);
+        double seconds = Timer::durationInSecond(searchBegin, Timer::Clock::now());
+        Log(LogSwitch::Szx::TabuSearch) << "speed=" << iteration << "/" << seconds << "=" << (iteration / seconds) << endl;
+        for (auto n = solution.colors.begin(); n != solution.colors.end(); ++n) { sln.add_nodecolors(*n); }
+        return true;
+    };
     for (Iteration perturbation = MaxPerturbation; perturbation > 0; --perturbation) {
         initCacheAndObj();
         for (Iteration stagnation = MaxStagnation; !timer.isTimeOut() && (stagnation > 0); ++iter, --stagnation) {
@@ -1080,6 +1084,7 @@ bool Solver::optimizeTabuSearchPQ(Solution &sln) {
 bool Solver::optimizeTabuSearch(Solution &sln) {
     ID nodeNum = input.graph().nodenum();
     ID colorNum = input.colornum();
+    if (iteration <= 0) { iteration = env.maxIter; }
 
     // cache for neighborhood moves.
     struct Move {
@@ -1107,11 +1112,6 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
     Coloring curSln(nodeNum, 0); // current solution.
     ID &conflictNum(curSln.conflictNum);
     List<ID> &colors(curSln.colors);
-
-    auto retreiveSln = [&](const Coloring &solution) {
-        for (auto n = solution.colors.begin(); n != solution.colors.end(); ++n) { sln.add_nodecolors(*n); }
-        return true;
-    };
 
     // tabu.
     const Iteration MaxTabuTenure = nodeNum;
@@ -1156,6 +1156,14 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
     const Iteration MaxPerturbation = static_cast<Iteration>(Configuration::MaxPerterbationCoefOnNodeNum * nodeNum);
     const Iteration PerturbedNodeNum = static_cast<Iteration>(Configuration::PerturbedNodeRatio * nodeNum);
     Iteration iter = 0;
+    Timer::TimePoint searchBegin = Timer::Clock::now();
+    auto retreiveSln = [&](const Coloring &solution) {
+        Math::updateMin(iteration, iter);
+        double seconds = Timer::durationInSecond(searchBegin, Timer::Clock::now());
+        Log(LogSwitch::Szx::TabuSearch) << "speed=" << iteration << "/" << seconds << "=" << (iteration / seconds) << endl;
+        for (auto n = solution.colors.begin(); n != solution.colors.end(); ++n) { sln.add_nodecolors(*n); }
+        return true;
+    };
     for (Iteration perturbation = MaxPerturbation; perturbation > 0; --perturbation) {
         initCacheAndObj();
         for (Iteration stagnation = MaxStagnation; !timer.isTimeOut() && (stagnation > 0); ++iter, --stagnation) {
@@ -1207,7 +1215,7 @@ bool Solver::optimizeTabuSearch(Solution &sln) {
             // update tabu.
             Iteration tabuTenure = min(conflictNum, 20) + rand.pick(2, 10); // TODO[szx][5]: parameterize the constant!
             tabuTab.at(move.node, move.oldColor) = iter + tabuTenure;
-            Log(LogSwitch::Szx::TabuSearch) << "iter=" << iter << " opt=" << optSln.conflictNum << " cur=" << conflictNum << " node=" << move.node << " color=" << move.color << "<=" << move.oldColor << " delta=" << move.delta << " tenure=" << tabuTenure << endl;
+            //Log(LogSwitch::Szx::TabuSearch) << "iter=" << iter << " opt=" << optSln.conflictNum << " cur=" << conflictNum << " node=" << move.node << " color=" << move.color << "<=" << move.oldColor << " delta=" << move.delta << " tenure=" << tabuTenure << endl;
         }
 
         // pertrubation.
