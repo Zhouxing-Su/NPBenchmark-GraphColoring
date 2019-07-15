@@ -222,6 +222,8 @@ protected:
 
     void detectClique();
     void detectIndependentSet();
+    void detectIndependentSetsInInvSubGraphs();
+    void detectIndependentSetsInSubGraphs();
 
     bool optimizeBoolDecisionModel(Solution &sln);
     bool optimizeRelaxedBoolDecisionModel(Solution &sln);
@@ -251,9 +253,11 @@ public:
         tsm::Clique clique;
         List<ID> fixedColors; // fixedColors[n] is the fixed color for node n if it is a valid color.
 
-        Arr2D<bool> notAdjMat; // notAdjMat[i][j] is true if node i is not adjacent to node j.
-        List<Subgraph> subgraphs; // subgraphs[n] is the sub-graph containing node n in the complement graph.
         CombinationMap<tsm::Clique> independentSets;
+        List<Subgraph> subInvGraphs; // subInvGraphs[n] is the sub-graph containing node n and its adjacent nodes in the complement graph.
+
+        List<Subgraph> subGraphs; // subgraphs[n] is the sub-graph containing node n's adjacent nodes in the graph.
+        List<tsm::Clique> independentSetInSubGraphs; // independentSetInSubGraphs[n] is the max independent set in subgraphs[n].
     } aux;
 
     Environment env;

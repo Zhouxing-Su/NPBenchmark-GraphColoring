@@ -349,6 +349,8 @@ bool Solver::optimizeBoolDecisionModel(Solution &sln) {
 }
 
 bool Solver::optimizeRelaxedBoolDecisionModel(Solution &sln) {
+    //detectIndependentSetsInSubGraphs();
+
     ID nodeNum = input.graph().nodenum();
 
     auto &nodeColors(*sln.mutable_nodecolors());
@@ -392,6 +394,16 @@ bool Solver::optimizeRelaxedBoolDecisionModel(Solution &sln) {
             }
         }
     }
+    //for (ID n = 0; n < nodeNum; ++n) {
+    //    ID maxSameColorNum = static_cast<ID>(aux.independentSetInSubGraphs[n].nodes.size());
+    //    for (auto c = 0; c < input.colornum(); ++c) {
+    //        MpSolver::LinearExpr degree;
+    //        for (auto m = aux.adjList[n].begin(); m != aux.adjList[n].end(); ++m) {
+    //            degree += isColor.at(*m, c);
+    //        }
+    //        mp.addConstraint(maxSameColorNum * isColor.at(n, c) + degree <= maxSameColorNum + maxSameColorNum * hasConflict.at(n, aux.adjList[n].front()));
+    //    }
+    //}
 
     // set objective.
     mp.setOptimaOrientation(MpSolver::OptimaOrientation::Minimize);
@@ -463,7 +475,7 @@ bool Solver::optimizeIntegerDecisionModel(Solution &sln) {
 }
 
 bool Solver::optimizeCoveringBoolDecisionModel(Solution &sln) {
-    detectIndependentSet();
+    detectIndependentSetsInInvSubGraphs();
 
     ID nodeNum = input.graph().nodenum();
 
@@ -487,7 +499,7 @@ bool Solver::optimizeCoveringBoolDecisionModel(Solution &sln) {
         //Log(LogSwitch::Szx::Model) << endl;
 
         tsm::Clique iSet;
-        tsm::solveWeightedMaxClique(iSet, aux.notAdjMat, iSetWeights, cfg.msCliqueDetectionTimeout);
+        tsm::solveWeightedIndependentSet(iSet, aux.adjMat, iSetWeights, cfg.msCliqueDetectionTimeout);
 
         tsm::Weight error = static_cast<tsm::Weight>(iSet.nodes.size());
         tsm::Weight reducedCost = iSet.weight - error;
@@ -511,7 +523,7 @@ bool Solver::optimizeCoveringBoolDecisionModel(Solution &sln) {
 }
 
 bool Solver::optimizeCoveringBoolDecisionModel(Solution &sln, Arr<double> &coverWeights, Arr<tsm::Weight> &iSetWeights, bool linearRelax) {
-    detectIndependentSet();
+    detectIndependentSetsInInvSubGraphs();
 
     ID nodeNum = input.graph().nodenum();
 
@@ -601,7 +613,7 @@ bool Solver::optimizeCoveringBoolDecisionModel(Solution &sln, Arr<double> &cover
 }
 
 bool Solver::optimizeCoveringRelaxedBoolDecisionModel(Solution &sln) {
-    detectIndependentSet();
+    detectIndependentSetsInInvSubGraphs();
 
     ID nodeNum = input.graph().nodenum();
 
@@ -624,7 +636,7 @@ bool Solver::optimizeCoveringRelaxedBoolDecisionModel(Solution &sln) {
         Log(LogSwitch::Szx::Model) << endl;
 
         tsm::Clique iSet;
-        tsm::solveWeightedMaxClique(iSet, aux.notAdjMat, iSetWeights, cfg.msCliqueDetectionTimeout);
+        tsm::solveWeightedIndependentSet(iSet, aux.adjMat, iSetWeights, cfg.msCliqueDetectionTimeout);
 
         sort(iSet.nodes.begin(), iSet.nodes.end());
         if (aux.independentSets.set(iSet.nodes, iSet)) {
@@ -647,13 +659,13 @@ bool Solver::optimizeCoveringRelaxedBoolDecisionModel(Solution &sln) {
 
     //    tsm::Clique iSet;
     //    for (ID n = 0; n < nodeNum; ++n) {
-    //        Subgraph &subgraph(aux.subgraphs[n]);
-    //        Arr<tsm::Weight> weights(static_cast<ID>(subgraph.idMap.size()));
-    //        for (ID i = 0; i < weights.size(); ++i) { weights[i] = iSetWeights[subgraph.idMap[i]]; }
+    //        Subgraph &subInvGraph(aux.subInvGraphs[n]);
+    //        Arr<tsm::Weight> weights(static_cast<ID>(subInvGraph.idMap.size()));
+    //        for (ID i = 0; i < weights.size(); ++i) { weights[i] = iSetWeights[subInvGraph.idMap[i]]; }
 
-    //        tsm::solveWeightedMaxClique(iSet, subgraph.adjMat, weights, cfg.msCliqueDetectionTimeout);
+    //        tsm::solveWeightedMaxClique(iSet, subInvGraph.adjMat, weights, cfg.msCliqueDetectionTimeout);
 
-    //        subgraph.mapBack(iSet.nodes);
+    //        subInvGraph.mapBack(iSet.nodes);
     //        sort(iSet.nodes.begin(), iSet.nodes.end());
     //        if (aux.independentSets.set(iSet.nodes, iSet)) {
     //            Log(LogSwitch::Szx::Model) << n << ".IndependentSet[" << iSet.nodes.size() << "]=";
@@ -669,7 +681,7 @@ bool Solver::optimizeCoveringRelaxedBoolDecisionModel(Solution &sln) {
 }
 
 bool Solver::optimizeCoveringRelaxedBoolDecisionModel(Solution &sln, Arr<double> &coverWeights, Arr<tsm::Weight> &iSetWeights) {
-    detectIndependentSet();
+    detectIndependentSetsInInvSubGraphs();
 
     ID nodeNum = input.graph().nodenum();
 
@@ -1429,20 +1441,14 @@ void Solver::detectClique() {
 }
 
 void Solver::detectIndependentSet() {
-    if (!aux.subgraphs.empty()) { return; } // already initialized.
+    if (aux.independentSets.dataNum() > 0) { return; } // already initialized.
 
     ID nodeNum = input.graph().nodenum();
 
-    aux.subgraphs.resize(nodeNum);
     aux.independentSets = CombinationMap<tsm::Clique>(nodeNum);
 
-    aux.notAdjMat.init(nodeNum, nodeNum);
-    for (ID i = 0; i < aux.adjMat.size(); ++i) {
-        aux.notAdjMat.at(i) = !aux.adjMat.at(i);
-    }
-
     tsm::Clique iSet;
-    tsm::solveWeightedMaxClique(iSet, aux.notAdjMat, cfg.msCliqueDetectionTimeout);
+    tsm::solveWeightedIndependentSet(iSet, aux.adjMat, cfg.msCliqueDetectionTimeout);
     sort(iSet.nodes.begin(), iSet.nodes.end());
     aux.independentSets.set(iSet.nodes, iSet);
     Log(LogSwitch::Szx::Preprocess) << "IndependentSet[" << iSet.weight << "]=";
@@ -1450,26 +1456,33 @@ void Solver::detectIndependentSet() {
         Log(LogSwitch::Szx::Preprocess) << " " << *n;
     }
     Log(LogSwitch::Szx::Preprocess) << endl;
+}
 
+void Solver::detectIndependentSetsInInvSubGraphs() {
+    if (!aux.subInvGraphs.empty()) { return; } // already initialized.
+    detectIndependentSet();
+
+    ID nodeNum = input.graph().nodenum();
+
+    tsm::Clique iSet;
+    aux.subInvGraphs.resize(nodeNum);
     for (ID n = 0; n < nodeNum; ++n) {
-        Subgraph &subgraph(aux.subgraphs[n]);
+        Subgraph &subInvGraph(aux.subInvGraphs[n]);
         for (ID m = 0; m < nodeNum; ++m) {
-            if (!aux.notAdjMat.at(n, m)) { continue; }
-            subgraph.idMap.push_back(m);
+            if (!aux.adjMat.at(n, m)) { subInvGraph.idMap.push_back(m); } // including node n itself.
         }
-        ID subGraphNodeNum = static_cast<ID>(subgraph.idMap.size());
-        subgraph.adjMat.init(subGraphNodeNum, subGraphNodeNum);
-        //subgraph.adjMat.reset(tsm::AdjMat::ResetOption::AllBits0);
-        for (ID i = 0; i < subGraphNodeNum; ++i) {
-            for (ID j = 0; j < subGraphNodeNum; ++j) {
-                if (i == j) { continue; } // the tsm will ignore edge to itself.
-                subgraph.adjMat.at(i, j) = aux.notAdjMat.at(subgraph.idMap[i], subgraph.idMap[j]);
+
+        ID subInvGraphNodeNum = static_cast<ID>(subInvGraph.idMap.size());
+        subInvGraph.adjMat.init(subInvGraphNodeNum, subInvGraphNodeNum); // no default value since every item will be set.
+        for (ID i = 0; i < subInvGraphNodeNum; ++i) {
+            for (ID j = 0; j < subInvGraphNodeNum; ++j) {
+                //if (i == j) { continue; } // the tsm will ignore edge to itself.
+                subInvGraph.adjMat.at(i, j) = !aux.adjMat.at(subInvGraph.idMap[i], subInvGraph.idMap[j]);
             }
         }
-        // OPTIMIZE[szx][5]: shrink the matrix to reduce memory allocation in TSM algorithm.
         // OPTIMIZE[szx][5]: record the combination of removed nodes to avoid computing clique on the same sub-graph.
-        tsm::solveWeightedMaxClique(iSet, subgraph.adjMat, cfg.msCliqueDetectionTimeout);
-        subgraph.mapBack(iSet.nodes);
+        tsm::solveWeightedMaxClique(iSet, subInvGraph.adjMat, cfg.msCliqueDetectionTimeout);
+        subInvGraph.mapBack(iSet.nodes);
         sort(iSet.nodes.begin(), iSet.nodes.end());
         if (aux.independentSets.set(iSet.nodes, iSet)) {
             Log(LogSwitch::Szx::Preprocess) << n << ".IndependentSet[" << iSet.weight << "]=";
@@ -1478,6 +1491,41 @@ void Solver::detectIndependentSet() {
             }
             Log(LogSwitch::Szx::Preprocess) << endl;
         }
+    }
+}
+
+void Solver::detectIndependentSetsInSubGraphs() {
+    if (!aux.subGraphs.empty()) { return; } // already initialized.
+
+    ID nodeNum = input.graph().nodenum();
+
+    tsm::Clique iSet;
+    aux.subGraphs.resize(nodeNum);
+    aux.independentSetInSubGraphs.resize(nodeNum);
+    for (ID n = 0; n < nodeNum; ++n) {
+        Subgraph &subGraph(aux.subGraphs[n]);
+        for (ID m = 0; m < nodeNum; ++m) {
+            if (aux.adjMat.at(n, m)) { subGraph.idMap.push_back(m); } // not including node n itself.
+        }
+
+        ID subGraphNodeNum = static_cast<ID>(subGraph.idMap.size());
+        subGraph.adjMat.init(subGraphNodeNum, subGraphNodeNum); // no default value since every item will be set.
+        for (ID i = 0; i < subGraphNodeNum; ++i) {
+            for (ID j = 0; j < subGraphNodeNum; ++j) {
+                //if (i == j) { continue; } // the tsm will ignore edge to itself.
+                subGraph.adjMat.at(i, j) = aux.adjMat.at(subGraph.idMap[i], subGraph.idMap[j]);
+            }
+        }
+        tsm::solveWeightedIndependentSet(iSet, subGraph.adjMat, cfg.msCliqueDetectionTimeout);
+        subGraph.mapBack(iSet.nodes);
+        sort(iSet.nodes.begin(), iSet.nodes.end());
+        aux.independentSetInSubGraphs[n] = iSet;
+
+        Log(LogSwitch::Szx::Preprocess) << n << ".IndependentSet[" << iSet.weight << "]=";
+        for (auto m = iSet.nodes.begin(); m != iSet.nodes.end(); ++m) {
+            Log(LogSwitch::Szx::Preprocess) << " " << *m;
+        }
+        Log(LogSwitch::Szx::Preprocess) << endl;
     }
 }
 #pragma endregion Solver
