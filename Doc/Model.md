@@ -92,8 +92,8 @@ all of the following constraints must be satisfied.
 
 ### Set
 
-| Set | Description                   | Size        | Element         | Remark                                                         |
-| ---- | ---------------------- | ----------- | ------------ | ------------------------------------------------------------ |
+| Set | Description                   | Size        | Element         | Remark                        |
+| ---- | ---------------------- | ----------- | ------------ | ------------------------- |
 | $N$ | **n**ode set | $[2, 2000]$ | $n, m$ | $I_{n} \subset N$ is the set of independent nodes containing node $n$ |
 | $I$ | **i**ndependent sets | $[2, 2000]$ | $i$ | $N_{i} \subset N$ is a set of independent nodes |
 | $C$ | **c**olor set | $[2, 2000]$ | $c$ |               |
@@ -101,8 +101,8 @@ all of the following constraints must be satisfied.
 
 ## Decision
 
-| Variable     | Description                                                | Type | Domain     | Remark                                                     |
-| -------------- | ------------------------------------------------------------ | ---- | ------------- | ------------------------------------------------------------ |
+| Variable     | Description                                                | Type | Domain     | Remark            |
+| -------------- | ------------------------------------------------------------ | ---- | ------------- | ------------- |
 | $s_{i}$ | independent node set $i$ is **s**elected | bool | $\{0, 1\}$ |  |
 
 
@@ -129,8 +129,8 @@ all of the following constraints must be satisfied.
 
 ### Set
 
-| Set | Description                   | Size        | Element         | Remark                                                         |
-| ---- | ---------------------- | ----------- | ------------ | ------------------------------------------------------------ |
+| Set | Description                   | Size        | Element         | Remark                      |
+| ---- | ---------------------- | ----------- | ------------ | --------------------- |
 | $N$ | **n**ode set | $[2, 2000]$ | $n, m$ |               |
 | $E$ | **e**dge set | $[1, |N|^2]$ | $e, (n, m)$ |               |
 | $C$ | **c**olor set | $[2, 2000]$ | $c$ |               |
@@ -138,9 +138,16 @@ all of the following constraints must be satisfied.
 
 ## Decision
 
-| Variable     | Description                                                | Type | Domain     | Remark                                                     |
-| -------------- | ------------------------------------------------------------ | ---- | ------------- | ------------------------------------------------------------ |
+| Variable     | Description                       | Type | Domain     | Remark      |
+| -------------- | ------------------------------ | ---- | ------------- | ------------------ |
 | $x_{nc}$ | assign color $c$ to node $n$ | bool | $\{0, 1\}$ |  |
+
+### Convention and Function
+
+- define function $\textrm{A}(n)$ to be the set of adjacent nodes of node $n$.
+- define function $\textrm{I}(N')$ to be the max independent set in node set $N'$.
+- define function $\textrm{C}(N')$ to be the max clique in node set $N'$.
+- define function $\textrm{G}(N', i)$ to get the $i^{\textrm{th}}$ node in node set $N'$.
 
 
 ## Constraint
@@ -156,6 +163,46 @@ all of the following constraints must be satisfied.
   $$
   x_{nc} + x_{mc} \le 1, \quad \forall (n, m) \in E, \forall c \in C
   $$
+  it can be reduced by combining the constraints $\forall n \in \textrm{A}(n)$.
+  $$
+  |\textrm{A}(n)| \cdot x_{nc} + \sum_{m \in \textrm{A}(n)} x_{mc} \le |\textrm{A}(n)|, \quad \forall n \in N, \forall c \in C
+  $$
+  it can be strengthened by the fact that the number of nodes with the same color never exceeds the size of the max independent set.
+  $$
+  |\textrm{I}(\textrm{A}(n))| \cdot x_{nc} + \sum_{m \in \textrm{A}(n)} x_{mc} \le |\textrm{I}(\textrm{A}(n))|, \quad \forall n \in N, \forall c \in C
+  $$
+
+- **HSO.O (size order)** the number of nodes assigned to certain color decreases monotonically as the color index increases.
+  i.e., the number of nodes assigned to smaller color index should not exceed the number of nodes assigned to greater color index.
+  it is conflict with **HEO.O (exploitation order)**.
+  $$
+  \sum_{n \in N} x_{nc'} \ge \sum_{n \in [0, n)} x_{nc}, \quad \forall c, c' \in C, c' = c - 1
+  $$
+
+- **HIO.O (index order)** each node cannot be assigned to the colors whose indices exceed the node's.
+  $$
+  x_{nc} = 0, \quad \forall n \in N, c \in C, n < c
+  $$
+
+- **HEO.O (exploitation order)** the min node index assigned to certain color increases monotonically as the color index increases.
+  i.e., greater color index cannot be used if the smaller color index is not used by nodes with smaller index.
+  it is conflict with **HSO.O (size order)**.
+  $$
+  \sum_{m \in [0, n)} x_{mc'} \ge x_{nc}, \quad \forall n \in N, \forall c, c' \in C, c' = c - 1
+  $$
+  if **HIO.O (index order)** is enabled, it can be reduced by substituting the 0-value items.
+    $$
+    \sum_{m \in [c', n)} x_{mc'} \ge x_{nc}, \quad \forall n \in N, \forall c, c' \in C, c' = c - 1, n \ge c
+    $$
+
+- **HFC.O (fixed clique)** the nodes in a clique should be assigned to different colors.
+  if $\textrm{C}(N) \neq \{0, 1, 2, ..., |\textrm{C}(N)| - 1\}$, it is conflict with **HIO.O (index order)** and **HEO.O (exploitation order)**.
+  $$
+  x_{nc} = 1, \quad \forall n \in \textrm{C}(N), \forall c \in C, n = \textrm{G}(\textrm{C}(N), c)
+  $$
+  $$
+  x_{nc} = 0, \quad \forall n \in \textrm{C}(N), \forall c \in C, n \neq \textrm{G}(\textrm{C}(N), c)
+  $$
 
 
 
@@ -165,8 +212,8 @@ all of the following constraints must be satisfied.
 
 ### Set
 
-| Set | Description                   | Size        | Element         | Remark                                                         |
-| ---- | ---------------------- | ----------- | ------------ | ------------------------------------------------------------ |
+| Set | Description                   | Size        | Element         | Remark                             |
+| ---- | ---------------------- | ----------- | ------------ | ----------------- |
 | $N$ | **n**ode set | $[2, 2000]$ | $n, m$ |               |
 | $E$ | **e**dge set | $[1, |N|^2]$ | $e, (n, m)$ |               |
 | $C$ | **c**olor set | $[2, 2000]$ | $c$ |               |
@@ -174,8 +221,8 @@ all of the following constraints must be satisfied.
 
 ## Decision
 
-| Variable     | Description                                                | Type | Domain     | Remark                                                     |
-| -------------- | ------------------------------------------------------------ | ---- | ------------- | ------------------------------------------------------------ |
+| Variable     | Description                        | Type | Domain     | Remark          |
+| -------------- | -------------------------- | ---- | ------------- | --------------------- |
 | $x_{nc}$ | assign color $c$ to node $n$ | bool | $\{0, 1\}$ |  |
 | $y_{e}$ | there is a conflict on edge $e$ | real | $[0, 1]$ |  |
 
@@ -213,8 +260,8 @@ all of the following constraints must be satisfied.
 
 ### Set
 
-| Set | Description                   | Size        | Element         | Remark                                                         |
-| ---- | ---------------------- | ----------- | ------------ | ------------------------------------------------------------ |
+| Set | Description                   | Size        | Element         | Remark                 |
+| ---- | ---------------------- | ----------- | ------------ | -------------------- |
 | $N$ | **n**ode set | $[2, 2000]$ | $n, m$ |               |
 | $E$ | **e**dge set | $[1, |N|^2]$ | $e, (n, m)$ |               |
 | $C$ | **c**olor set | $[2, 2000]$ | $c$ |               |
@@ -222,8 +269,8 @@ all of the following constraints must be satisfied.
 
 ## Decision
 
-| Variable     | Description                                                | Type | Domain     | Remark                                                     |
-| -------------- | ------------------------------------------------------------ | ---- | ------------- | ------------------------------------------------------------ |
+| Variable     | Description                           | Type | Domain     | Remark                  |
+| -------------- | ------------------------------------ | ---- | ------------- | ------------------- |
 | $x_{n}$ | the color assigned to node $n$ | int | $C$ |  |
 | $z_{e}, z_{nm}$ | the color index for node $n$ is less than the one for node $m$ | real | $[0, 1]$ | $e = (n, m) \in E$ |
 
