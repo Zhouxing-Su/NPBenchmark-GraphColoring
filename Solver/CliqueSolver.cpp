@@ -102,5 +102,35 @@ bool solveWeightedMaxClique(Clique &sln, const AdjMat &adjMat, Millisecond timeo
     return solveWeightedMaxClique(sln, adjMat, Arr<Weight>(adjMat.size1(), 1), timeout);
 }
 
+bool solveWeightedIndependentSet(Clique &sln, const AdjMat &adjMat, const Arr<Weight> &nodeWeights, Millisecond timeout) {
+    ID i = 0;
+    ID j = 0;
+    auto nextEdge = [&](ID &src, ID &dst) {
+        for (;;) {
+            if (j >= adjMat.size1()) {
+                j = 0;
+                ++i;
+            }
+            if (i >= adjMat.size1()) {
+                i = 0;
+                return false;
+            }
+            if (adjMat.at(i, j)) {
+                ++j;
+                continue;
+            }
+            src = i;
+            dst = j;
+            ++j;
+            return true;
+        }
+    };
+    return solveWeightedMaxClique(sln, nextEdge, nodeWeights, timeout);
+}
+
+bool solveWeightedIndependentSet(Clique &sln, const AdjMat &adjMat, Millisecond timeout) {
+    return solveWeightedIndependentSet(sln, adjMat, Arr<Weight>(adjMat.size1(), 1), timeout);
+}
+
 }
 }

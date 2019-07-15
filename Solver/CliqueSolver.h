@@ -61,6 +61,9 @@ bool solveWeightedMaxClique(Clique &sln, const EdgeList &edgeList, ID nodeNum, M
 bool solveWeightedMaxClique(Clique &sln, const AdjMat &adjMat, const Arr<Weight> &nodeWeights, Millisecond timeout = DefaultTimeout);
 bool solveWeightedMaxClique(Clique &sln, const AdjMat &adjMat, Millisecond timeout = DefaultTimeout);
 
+bool solveWeightedIndependentSet(Clique &sln, const AdjMat &adjMat, const Arr<Weight> &nodeWeights, Millisecond timeout = DefaultTimeout);
+bool solveWeightedIndependentSet(Clique &sln, const AdjMat &adjMat, Millisecond timeout = DefaultTimeout);
+
 }
 }
 

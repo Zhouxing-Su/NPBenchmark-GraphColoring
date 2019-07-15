@@ -2915,6 +2915,7 @@ int loadInput(NextEdge nextEdge, const Arr<Weight> &nodeWeights,
     }
 
     while (nextEdge(l_node, r_node)) {
+        if (l_node == r_node) { continue; }
         ++NB_EDGE;
         ++Node_Degree[l_node += CliqueIdBase];
         ++Node_Degree[r_node += CliqueIdBase];
