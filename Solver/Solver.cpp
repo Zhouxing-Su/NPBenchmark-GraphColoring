@@ -286,6 +286,7 @@ bool Solver::optimize(Solution &sln, ID workerId) {
     status = optimizeTabuSearchPQ(sln);
     //status = optimizeTabuSearch(sln);
     //status = optimizeAuctionSearch(sln);
+    //status = optimizeCliqueReduction(sln);
 
     sln.colorNum = input.colornum(); // record obj.
 
@@ -1406,6 +1407,78 @@ bool Solver::optimizeAuctionSearch(Solution &sln) {
     }
 
     return retreiveSln(optSln);
+}
+
+bool Solver::optimizeCliqueReduction(Solution &sln) {
+    auto &nodeColors(*sln.mutable_nodecolors());
+    nodeColors.Resize(input.graph().nodenum(), Problem::InvalidId);
+
+    // node mapping.
+    ID colorNum = input.colornum();
+    ID nodeNum = input.graph().nodenum();
+    ID virtualNodeNum = 0;
+    Arr2D<ID> indices(nodeNum, colorNum); // virtual node id if it exists.
+    indices.reset(Arr2D<ID>::ResetOption::AllBits1);
+    for (ID n = 0; n < nodeNum; ++n) {
+        if (aux.fixedColors[n] > Problem::InvalidId) { continue; } // eliminate nodes with fixed colors.
+        List<bool> skipColors(colorNum, false); // eliminate colors which is used by adjacent nodes with fixed colors.
+        for (auto m = aux.adjList[n].begin(); m != aux.adjList[n].end(); ++m) {
+            if (aux.fixedColors[*m] > Problem::InvalidId) { skipColors[aux.fixedColors[*m]] = true; }
+        }
+        for (ID c = 0; c < colorNum; ++c) {
+            if (!skipColors[c]) { indices.at(n, c) = virtualNodeNum++; }
+        }
+    }
+    Log(LogSwitch::CliqueReduction) << "RemainingNodeNum=" << virtualNodeNum << "/" << nodeNum * colorNum << endl;
+
+    // generate virtual graph.
+    tsm::AdjMat adjMat(virtualNodeNum, virtualNodeNum);
+    adjMat.reset(tsm::AdjMat::ResetOption::AllBits0);
+
+    ID maxEdgeNum = virtualNodeNum * (virtualNodeNum - 1) / 2;
+    ID edgeNum = maxEdgeNum;
+    for (ID n = 0; n < nodeNum; ++n) {
+        if (aux.fixedColors[n] > Problem::InvalidId) { continue; }
+        for (ID c = 0; c < colorNum; ++c) {
+            if (indices.at(n, c) <= Problem::InvalidId) { continue; }
+            // single color.
+            for (ID k = 0; k < c; ++k) {
+                if (indices.at(n, k) <= Problem::InvalidId) { continue; }
+                adjMat.at(indices.at(n, c), indices.at(n, k)) = true;
+                adjMat.at(indices.at(n, k), indices.at(n, c)) = true;
+                --edgeNum;
+            }
+            // conflict avoidance.
+            for (auto m = aux.adjList[n].begin(); m != aux.adjList[n].end(); ++m) {
+                if (aux.fixedColors[*m] > Problem::InvalidId) { continue; }
+                if (indices.at(*m, c) <= Problem::InvalidId) { continue; }
+                adjMat.at(indices.at(n, c), indices.at(*m, c)) = true;
+                adjMat.at(indices.at(*m, c), indices.at(n, c)) = true;
+                --edgeNum;
+            }
+        }
+    }
+    Log(LogSwitch::CliqueReduction) << "VirtualEdgeNum=" << edgeNum << "/" << maxEdgeNum << endl;
+
+    // solve.
+    tsm::Clique iSet;
+    tsm::solveWeightedIndependentSet(iSet, adjMat, tsm::Forever, nodeNum - static_cast<ID>(aux.clique.nodes.size()));
+
+    // retrive solution.
+    sort(iSet.nodes.begin(), iSet.nodes.end());
+    auto vn = iSet.nodes.begin();
+    for (ID n = 0; n < nodeNum; ++n) {
+        if (aux.fixedColors[n] > Problem::InvalidId) {
+            nodeColors[n] = aux.fixedColors[n];
+        } else {
+            for (ID c = 0; c < colorNum; ++c) {
+                if (*vn == indices.at(n, c)) { nodeColors[n] = c; break; }
+            }
+            ++vn;
+        }
+    }
+
+    return false;
 }
 
 void Solver::detectClique() {

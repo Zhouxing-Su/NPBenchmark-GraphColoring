@@ -49,20 +49,20 @@ enum InitOrdering {
 // EXTEND[szx][0]: support enumerating good cliques.
 // EXTEND[szx][1]: support fixing node to be in some clique.
 //                 this can be done by simple preprocess that remove all nodes other than the adjacent nodes of the nodes to be fixed.
-bool solveWeightedMaxClique(Clique &sln, NextEdge nextEdge, const Arr<Weight> &nodeWeights, Millisecond timeout = DefaultTimeout);
-bool solveWeightedMaxClique(Clique &sln, NextEdge nextEdge, ID nodeNum, Millisecond timeout = DefaultTimeout);
+bool solveWeightedMaxClique(Clique &sln, NextEdge nextEdge, const Arr<Weight> &nodeWeights, Millisecond timeout = DefaultTimeout, ID lowerBound = 0);
+bool solveWeightedMaxClique(Clique &sln, NextEdge nextEdge, ID nodeNum, Millisecond timeout = DefaultTimeout, ID lowerBound = 0);
 
-bool solveWeightedMaxClique(Clique &sln, const AdjList &adjList, const Arr<Weight> &nodeWeights, Millisecond timeout = DefaultTimeout);
-bool solveWeightedMaxClique(Clique &sln, const AdjList &adjList, Millisecond timeout = DefaultTimeout);
+bool solveWeightedMaxClique(Clique &sln, const AdjList &adjList, const Arr<Weight> &nodeWeights, Millisecond timeout = DefaultTimeout, ID lowerBound = 0);
+bool solveWeightedMaxClique(Clique &sln, const AdjList &adjList, Millisecond timeout = DefaultTimeout, ID lowerBound = 0);
 
-bool solveWeightedMaxClique(Clique &sln, const EdgeList &edgeList, const Arr<Weight> &nodeWeights, Millisecond timeout = DefaultTimeout);
-bool solveWeightedMaxClique(Clique &sln, const EdgeList &edgeList, ID nodeNum, Millisecond timeout = DefaultTimeout);
+bool solveWeightedMaxClique(Clique &sln, const EdgeList &edgeList, const Arr<Weight> &nodeWeights, Millisecond timeout = DefaultTimeout, ID lowerBound = 0);
+bool solveWeightedMaxClique(Clique &sln, const EdgeList &edgeList, ID nodeNum, Millisecond timeout = DefaultTimeout, ID lowerBound = 0);
 
-bool solveWeightedMaxClique(Clique &sln, const AdjMat &adjMat, const Arr<Weight> &nodeWeights, Millisecond timeout = DefaultTimeout);
-bool solveWeightedMaxClique(Clique &sln, const AdjMat &adjMat, Millisecond timeout = DefaultTimeout);
+bool solveWeightedMaxClique(Clique &sln, const AdjMat &adjMat, const Arr<Weight> &nodeWeights, Millisecond timeout = DefaultTimeout, ID lowerBound = 0);
+bool solveWeightedMaxClique(Clique &sln, const AdjMat &adjMat, Millisecond timeout = DefaultTimeout, ID lowerBound = 0);
 
-bool solveWeightedIndependentSet(Clique &sln, const AdjMat &adjMat, const Arr<Weight> &nodeWeights, Millisecond timeout = DefaultTimeout);
-bool solveWeightedIndependentSet(Clique &sln, const AdjMat &adjMat, Millisecond timeout = DefaultTimeout);
+bool solveWeightedIndependentSet(Clique &sln, const AdjMat &adjMat, const Arr<Weight> &nodeWeights, Millisecond timeout = DefaultTimeout, ID lowerBound = 0);
+bool solveWeightedIndependentSet(Clique &sln, const AdjMat &adjMat, Millisecond timeout = DefaultTimeout, ID lowerBound = 0);
 
 }
 }

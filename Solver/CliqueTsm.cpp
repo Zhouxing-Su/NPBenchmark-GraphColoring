@@ -32,7 +32,7 @@
 // search `static .*[,;]\s*\n` for global or static variables.
 #include <chrono>
 #define MaxSAT
-#define SZX_TSM_DEBUG  0
+#define SZX_TSM_DEBUG  1
 #if !SZX_TSM_DEBUG
 #define printf
 #endif // SZX_TSM_DEBUG
@@ -50,9 +50,9 @@
 #define NULL_REASON -1
 #define NO_REASON -3
 #define CONFLICT -1978
-#define MAX_NODE 5000
+#define MAX_NODE 25000
 #define max_expand_depth 100000
-#define STACK_LENGTH (MAX_NODE*2)
+#define STACK_LENGTH (MAX_NODE*8)
 #define pop(stack) stack[--stack ## _fill_pointer]
 #define push(item, stack) stack[stack ## _fill_pointer++] = item
 #define ptr(stack) stack ## _fill_pointer
@@ -85,8 +85,8 @@ static thread_local char Node_Value[MAX_NODE];
 static thread_local int **Node_Neibors;
 
 static thread_local int Candidate_Stack_fill_pointer = 0;
-static thread_local long long Candidate_Stack[MAX_NODE * 2];
-static thread_local long long Vertex_UB[MAX_NODE * 2];
+static thread_local long long Candidate_Stack[STACK_LENGTH];
+static thread_local long long Vertex_UB[STACK_LENGTH];
 static thread_local int Clique_Stack_fill_pointer;
 static thread_local int *Clique_Stack, *MaxCLQ_Stack;
 static thread_local int Cursor_Stack[max_expand_depth];
@@ -2895,9 +2895,9 @@ int tsmMain(int argc, char *argv[]) {
 namespace szx{
 namespace tsm {
 
-int loadInput(NextEdge nextEdge, const Arr<Weight> &nodeWeights,
-    InitOrdering initOrdering = InitOrdering::DegreeDegeneracy) {
+int loadInput(NextEdge nextEdge, const Arr<Weight> &nodeWeights, InitOrdering initOrdering, ID lowerBound) {
     INIT_ORDERING = initOrdering;
+    OPT_CLQ_WEIGHT = lowerBound;
     clear_structures();
 
 
@@ -2934,11 +2934,12 @@ int loadInput(NextEdge nextEdge, const Arr<Weight> &nodeWeights,
         l_node += CliqueIdBase;
         r_node += CliqueIdBase;
         if (l_node >= 0 && r_node >= 0 && l_node != r_node) {
-            for (j = 0; j < Node_Degree[l_node]; j++) {
-                if (Node_Neibors[l_node][j] == r_node)
-                    break;
-            }
-            if (j == Node_Degree[l_node]) {
+            // make sure there is no dup edge.
+            //for (j = 0; j < Node_Degree[l_node]; j++) {
+            //    if (Node_Neibors[l_node][j] == r_node)
+            //        break;
+            //}
+            //if (j == Node_Degree[l_node]) {
                 Node_Neibors[l_node][Node_Degree[l_node]] = r_node;
                 Node_Neibors[r_node][Node_Degree[r_node]] = l_node;
                 Node_Degree[l_node]++;
@@ -2947,7 +2948,7 @@ int loadInput(NextEdge nextEdge, const Arr<Weight> &nodeWeights,
                 Node_Weight[l_node] += Top_Weight[r_node];
                 assert(LONG_MAX - Node_Weight[r_node] - Top_Weight[l_node] > 0);
                 Node_Weight[r_node] += Top_Weight[l_node];
-            }
+            //}
         }
     }
     Max_Degree = 0;

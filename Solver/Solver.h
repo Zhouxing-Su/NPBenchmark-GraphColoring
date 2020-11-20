@@ -239,6 +239,8 @@ protected:
     bool optimizeTabuSearchPQ(Solution &sln); // accelerated by priority queue.
     bool optimizeTabuSearch(Solution &sln);
     bool optimizeAuctionSearch(Solution &sln);
+
+    bool optimizeCliqueReduction(Solution &sln);
     #pragma endregion Method
 
     #pragma region Field

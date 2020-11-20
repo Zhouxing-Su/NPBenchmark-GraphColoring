@@ -491,7 +491,7 @@ public:
     // TODO[szx][8]: use different names for the arguments.
     DateTime(int year = 0, int month = 0, int day = 0, int hour = 0, int minute = 0, int second = 0)
         : year(year), month(month), day(day), hour(hour), minute(minute), second(second) {}
-    DateTime(tm &t) : DateTime(t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min) {}
+    DateTime(tm &t) : DateTime(t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec) {}
     DateTime(time_t t) : DateTime(*std::localtime(&t)) {}
 
     // get an inconsistent tm struct which requires std::mktime() to revise.
@@ -534,15 +534,15 @@ public:
             << std::setw(2) << std::setfill('0') << dateTime.second;
     }
 
-    static double durationInSecond(const DateTime &l, const DateTime &r) {
+    static double durationInSecond(const DateTime &start, const DateTime &end) {
         #if UTILITY_DATE_TIME_CPP_STYLE
         using Clock = std::chrono::system_clock;
         using TimePoint = Clock::time_point;
-        TimePoint tpl = Clock::from_time_t(static_cast<time_t>(l));
-        TimePoint tpr = Clock::from_time_t(static_cast<time_t>(r));
+        TimePoint tpl = Clock::from_time_t(static_cast<time_t>(start));
+        TimePoint tpr = Clock::from_time_t(static_cast<time_t>(end));
         return std::chrono::duration_cast<std::chrono::seconds>(tpl - tpr).count();
         #else
-        return std::difftime(static_cast<time_t>(l), static_cast<time_t>(r));
+        return std::difftime(static_cast<time_t>(end), static_cast<time_t>(start));
         #endif // UTILITY_DATE_TIME_CPP_STYLE
     };
 
