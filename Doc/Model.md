@@ -8,7 +8,69 @@
 
 
 
-# Graph Coloring Crossover
+# Graph Coloring Clustering Optimization Model
+
+## Known
+
+### Set
+
+| Set | Description                   | Size        | Element         | Remark                             |
+| ---- | ---------------------- | ----------- | ------------ | ----------------- |
+| $N$ | **n**ode set | $[2, 2000]$ | $n, m$ |               |
+| $E$ | **e**dge set | $[1, |N|^2]$ | $e, (n, m)$ |               |
+| $C$ | **c**olor set | $[2, 2000]$ | $c$ |               |
+
+
+## Decision
+
+| Variable     | Description                        | Type | Domain     | Remark          |
+| -------------- | -------------------------- | ---- | ------------- | --------------------- |
+| $x_{nm}$ | nodes $n$ and $m$ are assigned to the same color | bool | $\{0, 1\}$ | $(n, m) \notin E, m \le n$ (lower triangle) |
+| $y_{n}$ | node $n$ is the agent of its belonging cluster | bool | $\{0, 1\}$ | a color is used |
+
+
+## Objective
+
+### Minimize the Used Colors **OUC (used colors)**
+
+the number of used colors.
+
+$$
+\min \sum_{n \in N} y_{n}
+$$
+
+
+## Constraint
+
+all of the following constraints must be satisfied.
+if $x_{nm}$ exists in an expression, $(n, m) \notin E$ and $m \le n$ must be respected.
+
+- **HCB (cluster belonging)** each node belongs to a cluster whose containing nodes are assigned the same color. the agent of a cluster is the node with the smallest index.
+  $$
+  \sum_{m \in N} x_{nm} = 1, \quad \forall n \in N
+  $$
+  - it can be relaxed since belonging to more than one cluster never leads to better optima.
+    $$
+    \sum_{m \in N} x_{nm} \ge 1, \quad \forall n \in N
+    $$
+
+- **HAN (agent node)** node $m$ is the agent of cluster in which the nodes with the same color.
+  $$
+  \sum_{n \in N} x_{nm} \le |N| \cdot y_{m}, \quad \forall m \in N
+  $$
+  - it can be tighten if $n$ and $m$ are zero-based index, where $(|N| - m)$ is the upper bound of the summing term.
+    $$
+    \sum_{n \in N} x_{nm} \le (|N| - m) \cdot y_{m}, \quad \forall m \in N
+    $$
+
+- **HCP1 (conflict propagation)** adjacent nodes cannot share the same agent, i.e., be in the same cluster.
+  $$
+  x_{nm} + x_{n'm} \le 1, \quad \forall n, n', m \in N, (n, n') \in E
+  $$
+
+
+
+# Graph Coloring Crossover Decision Model
 
 ## Known
 
@@ -86,7 +148,7 @@ all of the following constraints must be satisfied.
 
 
 
-# Graph Coloring Column Generation
+# Graph Coloring Column Generation Decision Model
 
 ## Known
 
@@ -174,7 +236,7 @@ all of the following constraints must be satisfied.
 
 - **HSO.O (size order)** the number of nodes assigned to certain color decreases monotonically as the color index increases.
   i.e., the number of nodes assigned to smaller color index should not exceed the number of nodes assigned to greater color index.
-  it is conflict with **HEO.O (exploitation order)**.
+  it conflicts with **HEO.O (exploitation order)**.
   $$
   \sum_{n \in N} x_{nc'} \ge \sum_{n \in [0, n)} x_{nc}, \quad \forall c, c' \in C, c' = c - 1
   $$
@@ -186,7 +248,7 @@ all of the following constraints must be satisfied.
 
 - **HEO.O (exploitation order)** the min node index assigned to certain color increases monotonically as the color index increases.
   i.e., greater color index cannot be used if the smaller color index is not used by nodes with smaller index.
-  it is conflict with **HSO.O (size order)**.
+  it conflicts with **HSO.O (size order)**.
   $$
   \sum_{m \in [0, n)} x_{mc'} \ge x_{nc}, \quad \forall n \in N, \forall c, c' \in C, c' = c - 1
   $$
@@ -196,7 +258,7 @@ all of the following constraints must be satisfied.
     $$
 
 - **HFC.O (fixed clique)** the nodes in a clique should be assigned to different colors.
-  if $\textrm{C}(N) \neq \{0, 1, 2, ..., |\textrm{C}(N)| - 1\}$, it is conflict with **HIO.O (index order)** and **HEO.O (exploitation order)**.
+  if $\textrm{C}(N) \neq \{0, 1, 2, ..., |\textrm{C}(N)| - 1\}$, it conflicts with **HIO.O (index order)** and **HEO.O (exploitation order)**.
   $$
   x_{nc} = 1, \quad \forall n \in \textrm{C}(N), \forall c \in C, n = \textrm{G}(\textrm{C}(N), c)
   $$
